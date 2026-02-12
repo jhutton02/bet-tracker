@@ -19,7 +19,8 @@ gc = gspread.authorize(creds)
 # 👉 CHANGE THIS to your sheet name if needed
 SHEET_NAME = "Bet Tracker Data"
 
-sheet = gc.open(SHEET_NAME).sheet1
+SHEET_ID = "1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q"
+sheet = gc.open_by_key(SHEET_ID).sheet1
 
 # ================= HELPERS =================
 
@@ -322,4 +323,5 @@ with tab_calendar:
 
         if not found:
             st.info("No bets on this day.")
+
 
