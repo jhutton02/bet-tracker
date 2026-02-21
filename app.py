@@ -16,14 +16,11 @@ creds_dict = st.secrets["gcp_service_account"]
 creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 gc = gspread.authorize(creds)
 
-# Use your Sheet ID (already set in your app)
-SHEET_ID = st.secrets.get("SHEET_ID", None)
+# 👉 CHANGE THIS to your sheet name if needed
+SHEET_NAME = "Bet Tracker Data"
 
-if SHEET_ID:
-    sheet = gc.open_by_key(SHEET_ID).sheet1
-else:
-    SHEET_NAME = "Bet Tracker Data"
-    sheet = gc.open(SHEET_NAME).sheet1
+SHEET_ID = "1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q"
+sheet = gc.open_by_key(SHEET_ID).sheet1
 
 # ================= HELPERS =================
 
@@ -32,7 +29,7 @@ def load_bets():
     bets = []
     for r in rows:
         b = {}
-        b["date"] = date.fromisoformat(str(r["date"]))
+        b["date"] = date.fromisoformat(r["date"])
         b["sport"] = r["sport"]
         b["bet_type"] = r["bet_type"]
         b["bet_line"] = r["bet_line"]
@@ -177,9 +174,8 @@ with tab_tracker:
 
             color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
 
-            # ✅ TEXT COLOR FORCED TO BLACK
             st.markdown(
-                f"<div style='background-color:{color};padding:8px;border-radius:6px;color:#000000;'>"
+                f"<div style='background-color:{color};padding:8px;border-radius:6px'>"
                 f"{b['date']} | {b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['odds']} | {b['result']} | ${round(b['profit'],2)}"
                 f"</div>",
                 unsafe_allow_html=True
@@ -308,5 +304,23 @@ with tab_calendar:
 
                 cols[idx].markdown(html, unsafe_allow_html=True)
 
+    if st.session_state.selected_day:
+        st.markdown("---")
+        st.subheader("Bets on " + str(st.session_state.selected_day))
 
+        found = False
+        for b in st.session_state.bets:
+            if b["date"] == st.session_state.selected_day:
+                found = True
+                st.write(
+                    b["sport"] + " | " +
+                    b["bet_type"] + " | " +
+                    b["bet_line"] + " | " +
+                    b["odds"] + " | " +
+                    b["result"] + " | $" +
+                    str(round(b["profit"], 2))
+                )
+
+        if not found:
+            st.info("No bets on this day.")
 
