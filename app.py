@@ -174,11 +174,11 @@ with tab_tracker:
 
             color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
 
-           st.markdown(
-    f"<div style='background-color:{color};padding:8px;border-radius:6px;color:#000000;'>"
-    f"{b['date']} | {b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['odds']} | {b['result']} | ${round(b['profit'],2)}"
-    f"</div>",
-    unsafe_allow_html=True
+          st.markdown(
+                f"<div style='background-color:{color};padding:8px;border-radius:6px;color:#000000;'>"
+                f"{b['date']} | {b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['odds']} | {b['result']} | ${round(b['profit'],2)}"
+                f"</div>",
+                unsafe_allow_html=True
 )
 
             )
@@ -325,5 +325,6 @@ with tab_calendar:
 
         if not found:
             st.info("No bets on this day.")
+
 
 
