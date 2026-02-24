@@ -169,7 +169,6 @@ with tab_tracker:
 
             color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
 
-            # ✅ Text forced to black here
             st.markdown(
                 f"<div style='background-color:{color};padding:8px;border-radius:6px;color:#000000;'>"
                 f"{b['date']} | {b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['odds']} | {b['result']} | ${round(b['profit'],2)}"
@@ -231,29 +230,46 @@ with tab_add:
                 st.session_state.bets = load_bets()
                 st.success("Bet added")
 
-# ================= CALENDAR TAB =================
+# ================= CALENDAR TAB (STEP 1 UPGRADE) =================
 with tab_calendar:
 
-    st.subheader("Monthly Profit Calendar")
+    st.subheader("Monthly Performance")
 
     today = date.today()
     year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
     month = st.selectbox("Month", list(range(1,13)), index=today.month - 1)
 
     totals = {}
+    counts = {}
     monthly_total = 0
+    wins = losses = pushes = 0
 
     for b in st.session_state.bets:
-        if b["result"] in ["win","loss","push"]:
-            if b["date"].year == year and b["date"].month == month:
-                totals[b["date"]] = totals.get(b["date"], 0) + b["profit"]
+        if b["date"].year == year and b["date"].month == month:
+            d = b["date"]
+            totals[d] = totals.get(d, 0) + b["profit"]
+            counts[d] = counts.get(d, 0) + 1
+
+            if b["result"] == "win":
+                wins += 1
+            if b["result"] == "loss":
+                losses += 1
+            if b["result"] == "push":
+                pushes += 1
+
+            if b["result"] in ["win","loss","push"]:
                 monthly_total += b["profit"]
 
-    color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
-    st.markdown(
-        "<h3 style='color:{}'>Monthly Total: ${}</h3>".format(color, round(monthly_total,2)),
-        unsafe_allow_html=True
-    )
+    total_bets = wins + losses + pushes
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Monthly $", f"${round(monthly_total,2)}")
+    c2.metric("Wins", wins)
+    c3.metric("Losses", losses)
+    c4.metric("Pushes", pushes)
+    c5.metric("Total Bets", total_bets)
+
+    st.markdown("---")
 
     headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
@@ -265,12 +281,13 @@ with tab_calendar:
         for idx, day in enumerate(week):
             if day == 0:
                 cols[idx].markdown(
-                    "<div style='border:1px solid #e2e8f0;height:80px;border-radius:8px'></div>",
+                    "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>",
                     unsafe_allow_html=True
                 )
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
+                cnt = counts.get(d, 0)
 
                 if val > 0:
                     bg = "#c6f6d5"
@@ -283,22 +300,18 @@ with tab_calendar:
                 <div style="
                     background-color:{bg};
                     color:#000000;
-                    border-radius:8px;
-                    padding:6px;
-                    height:80px;
-                    text-align:center;
-                    font-weight:600;
+                    border-radius:10px;
+                    padding:8px;
+                    height:100px;
+                    border:1px solid #cbd5e0;
                     display:flex;
                     flex-direction:column;
-                    justify-content:center;
-                    border:1px solid #cbd5e0;
+                    justify-content:space-between;
                 ">
-                    <div>{day}</div>
-                    <div>${round(val,2)}</div>
+                    <div style="font-size:18px;font-weight:700;">{day}</div>
+                    <div style="font-size:14px;">${round(val,2)}</div>
+                    <div style="font-size:12px;color:#333;">{cnt} bets</div>
                 </div>
                 """
 
                 cols[idx].markdown(html, unsafe_allow_html=True)
-
-
-
