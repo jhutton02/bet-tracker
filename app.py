@@ -230,7 +230,7 @@ with tab_add:
                 st.session_state.bets = load_bets()
                 st.success("Bet added")
 
-# ================= CALENDAR TAB (STEP 1 UPGRADE) =================
+# ================= CALENDAR TAB =================
 with tab_calendar:
 
     st.subheader("Monthly Performance")
@@ -270,6 +270,9 @@ with tab_calendar:
     c5.metric("Total Bets", total_bets)
 
     st.markdown("---")
+
+    # ✅ STRONG BORDER AROUND THE CALENDAR
+    st.markdown("<div style='border:3px solid #000;border-radius:12px;padding:12px;'>", unsafe_allow_html=True)
 
     headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
@@ -315,3 +318,5 @@ with tab_calendar:
                 """
 
                 cols[idx].markdown(html, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
