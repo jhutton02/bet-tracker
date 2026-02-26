@@ -49,21 +49,6 @@ def save_bet(bet):
         bet["profit"]
     ])
 
-def update_bet(row_index, bet):
-    sheet.update(f"A{row_index}:H{row_index}", [[
-        str(bet["date"]),
-        bet["sport"],
-        bet["bet_type"],
-        bet["bet_line"],
-        bet["odds"],
-        bet["units"],
-        bet["result"],
-        bet["profit"]
-    ]])
-
-def delete_bet(row_index):
-    sheet.delete_rows(row_index)
-
 def parse_odds(text):
     try:
         return float(text.lower().replace("x", "").strip())
@@ -89,9 +74,6 @@ def calc_profit(units, odds, result):
 
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
-
-if "selected_day" not in st.session_state:
-    st.session_state.selected_day = None
 
 tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
@@ -163,11 +145,7 @@ with tab_calendar:
     selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
     month = month_names.index(selected_month_name) + 1
 
-    # 🔹 Big month title above the calendar
-    st.markdown(
-        f"<h2 style='text-align:center;margin-bottom:10px;'>{selected_month_name} {year}</h2>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<h2 style='text-align:center'>{selected_month_name} {year}</h2>", unsafe_allow_html=True)
 
     totals = {}
     counts = {}
@@ -178,72 +156,55 @@ with tab_calendar:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    # 🔹 Strong border around the entire month grid
-    with st.container():
-        st.markdown("<div style='border:4px solid #000;border-radius:14px;padding:14px;'>", unsafe_allow_html=True)
+    # Build calendar grid in HTML
+    weeks = calendar.monthcalendar(year, month)
 
-        headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
-        cols = st.columns(7)
-        for i in range(7):
-            cols[i].markdown("**" + headers[i] + "**")
+    html = """
+    <div style="border:4px solid #000;border-radius:14px;padding:12px;">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">
+    """
 
-        for week in calendar.monthcalendar(year, month):
-            cols = st.columns(7)
-            for idx, day in enumerate(week):
-                if day == 0:
-                    cols[idx].markdown(
-                        "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>",
-                        unsafe_allow_html=True
-                    )
+    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+    for h in headers:
+        html += f"<div style='font-weight:700;text-align:center'>{h}</div>"
+
+    for week in weeks:
+        for day in week:
+            if day == 0:
+                html += "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>"
+            else:
+                d = date(year, month, day)
+                val = totals.get(d, 0)
+                cnt = counts.get(d, 0)
+
+                if val > 0:
+                    bg = "#c6f6d5"
+                elif val < 0:
+                    bg = "#fed7d7"
                 else:
-                    d = date(year, month, day)
-                    val = totals.get(d, 0)
-                    cnt = counts.get(d, 0)
+                    bg = "#edf2f7"
 
-                    if val > 0:
-                        bg = "#c6f6d5"
-                    elif val < 0:
-                        bg = "#fed7d7"
-                    else:
-                        bg = "#edf2f7"
+                show_details = not (d > date.today() and cnt == 0)
 
-                    show_details = not (d > date.today() and cnt == 0)
+                if show_details:
+                    cell = f"""
+                    <div style="background:{bg};color:#000;border-radius:10px;padding:8px;height:100px;border:1px solid #cbd5e0;
+                    display:flex;flex-direction:column;justify-content:space-between;">
+                        <div style="font-size:18px;font-weight:700;">{day}</div>
+                        <div style="font-size:14px;">${round(val,2)}</div>
+                        <div style="font-size:12px;color:#333;">{cnt} bets</div>
+                    </div>
+                    """
+                else:
+                    cell = f"""
+                    <div style="background:{bg};color:#000;border-radius:10px;padding:8px;height:100px;border:1px solid #cbd5e0;
+                    display:flex;flex-direction:column;justify-content:flex-start;">
+                        <div style="font-size:18px;font-weight:700;">{day}</div>
+                    </div>
+                    """
 
-                    if show_details:
-                        html = f"""
-                        <div style="
-                            background-color:{bg};
-                            color:#000000;
-                            border-radius:10px;
-                            padding:8px;
-                            height:100px;
-                            border:1px solid #cbd5e0;
-                            display:flex;
-                            flex-direction:column;
-                            justify-content:space-between;
-                        ">
-                            <div style="font-size:18px;font-weight:700;">{day}</div>
-                            <div style="font-size:14px;">${round(val,2)}</div>
-                            <div style="font-size:12px;color:#333;">{cnt} bets</div>
-                        </div>
-                        """
-                    else:
-                        html = f"""
-                        <div style="
-                            background-color:{bg};
-                            color:#000000;
-                            border-radius:10px;
-                            padding:8px;
-                            height:100px;
-                            border:1px solid #cbd5e0;
-                            display:flex;
-                            flex-direction:column;
-                            justify-content:flex-start;
-                        ">
-                            <div style="font-size:18px;font-weight:700;">{day}</div>
-                        </div>
-                        """
+                html += cell
 
-                    cols[idx].markdown(html, unsafe_allow_html=True)
+    html += "</div></div>"
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
