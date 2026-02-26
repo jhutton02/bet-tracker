@@ -237,7 +237,10 @@ with tab_calendar:
 
     today = date.today()
     year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
-    month = st.selectbox("Month", list(range(1,13)), index=today.month - 1)
+
+    month_names = list(calendar.month_name)[1:]
+    selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
+    month = month_names.index(selected_month_name) + 1
 
     totals = {}
     counts = {}
