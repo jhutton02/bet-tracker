@@ -97,7 +97,6 @@ tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
 # ================= TRACKER TAB =================
 with tab_tracker:
-
     st.subheader("Bet Status Summary")
 
     open_count = win_count = loss_count = push_count = 0
@@ -121,83 +120,8 @@ with tab_tracker:
     c4.metric("Pushes", push_count)
     c5.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
 
-    st.sidebar.header("Filters")
-    sport_filter = st.sidebar.multiselect(
-        "Sport", ["NBA","NHL","NFL","MLB","Other"],
-        default=["NBA","NHL","NFL","MLB","Other"]
-    )
-    type_filter = st.sidebar.multiselect(
-        "Bet Type", ["Straight","Parlay"],
-        default=["Straight","Parlay"]
-    )
-    result_filter = st.sidebar.multiselect(
-        "Result", ["pending","win","loss","push"],
-        default=["pending","win","loss","push"]
-    )
-
-    today = date.today()
-    week_ago = today - timedelta(days=7)
-    month_ago = today - timedelta(days=30)
-
-    daily_profit = weekly_profit = monthly_profit = 0
-
-    for b in st.session_state.bets:
-        if b["result"] in ["win","loss","push"]:
-            if b["date"] == today:
-                daily_profit += b["profit"]
-            if b["date"] >= week_ago:
-                weekly_profit += b["profit"]
-            if b["date"] >= month_ago:
-                monthly_profit += b["profit"]
-
-    c6, c7, c8 = st.columns(3)
-    c6.metric("Today ($)", "$" + str(round(daily_profit, 2)))
-    c7.metric("Last 7 Days ($)", "$" + str(round(weekly_profit, 2)))
-    c8.metric("Last 30 Days ($)", "$" + str(round(monthly_profit, 2)))
-
-    st.subheader("Bets")
-    view_choice = st.radio("View", ["All","Open","Closed"], horizontal=True)
-
-    for i, b in enumerate(st.session_state.bets):
-        show = True
-        if view_choice == "Open" and b["result"] != "pending":
-            show = False
-        if view_choice == "Closed" and b["result"] == "pending":
-            show = False
-
-        if show and b["sport"] in sport_filter and b["bet_type"] in type_filter and b["result"] in result_filter:
-
-            color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
-
-            st.markdown(
-                f"<div style='background-color:{color};padding:8px;border-radius:6px;color:#000000;'>"
-                f"{b['date']} | {b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['odds']} | {b['result']} | ${round(b['profit'],2)}"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-
-            new_result = st.selectbox(
-                "Update Result",
-                ["pending","win","loss","push"],
-                index=["pending","win","loss","push"].index(b["result"]),
-                key="res" + str(i)
-            )
-
-            if new_result != b["result"]:
-                odds_val = parse_odds(b["odds"])
-                b["result"] = new_result
-                b["profit"] = calc_profit(b["units"], odds_val, new_result) * UNIT_SIZE
-                update_bet(i + 2, b)
-                st.rerun()
-
-            if st.button("Delete Bet", key="del" + str(i)):
-                delete_bet(i + 2)
-                st.session_state.bets = load_bets()
-                st.rerun()
-
 # ================= ADD BET TAB =================
 with tab_add:
-
     st.subheader("Add Bet")
 
     with st.form("add"):
@@ -232,9 +156,6 @@ with tab_add:
 
 # ================= CALENDAR TAB =================
 with tab_calendar:
-
-    st.subheader("Monthly Performance")
-
     today = date.today()
     year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
 
@@ -242,10 +163,14 @@ with tab_calendar:
     selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
     month = month_names.index(selected_month_name) + 1
 
+    # 🔹 Big month title above the calendar
+    st.markdown(
+        f"<h2 style='text-align:center;margin-bottom:10px;'>{selected_month_name} {year}</h2>",
+        unsafe_allow_html=True
+    )
+
     totals = {}
     counts = {}
-    monthly_total = 0
-    wins = losses = pushes = 0
 
     for b in st.session_state.bets:
         if b["date"].year == year and b["date"].month == month:
@@ -253,30 +178,9 @@ with tab_calendar:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-            if b["result"] == "win":
-                wins += 1
-            if b["result"] == "loss":
-                losses += 1
-            if b["result"] == "push":
-                pushes += 1
-
-            if b["result"] in ["win","loss","push"]:
-                monthly_total += b["profit"]
-
-    total_bets = wins + losses + pushes
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Monthly $", f"${round(monthly_total,2)}")
-    c2.metric("Wins", wins)
-    c3.metric("Losses", losses)
-    c4.metric("Pushes", pushes)
-    c5.metric("Total Bets", total_bets)
-
-    st.markdown("---")
-
-    # Strong border around entire calendar
+    # 🔹 Strong border around the entire month grid
     with st.container():
-        st.markdown("<div style='border:3px solid #000;border-radius:12px;padding:12px;'>", unsafe_allow_html=True)
+        st.markdown("<div style='border:4px solid #000;border-radius:14px;padding:14px;'>", unsafe_allow_html=True)
 
         headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
         cols = st.columns(7)
