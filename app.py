@@ -271,7 +271,7 @@ with tab_calendar:
 
     st.markdown("---")
 
-    # ✅ STRONG BORDER AROUND THE ENTIRE CALENDAR
+    # Strong border around entire calendar
     with st.container():
         st.markdown("<div style='border:3px solid #000;border-radius:12px;padding:12px;'>", unsafe_allow_html=True)
 
@@ -300,23 +300,42 @@ with tab_calendar:
                     else:
                         bg = "#edf2f7"
 
-                    html = f"""
-                    <div style="
-                        background-color:{bg};
-                        color:#000000;
-                        border-radius:10px;
-                        padding:8px;
-                        height:100px;
-                        border:1px solid #cbd5e0;
-                        display:flex;
-                        flex-direction:column;
-                        justify-content:space-between;
-                    ">
-                        <div style="font-size:18px;font-weight:700;">{day}</div>
-                        <div style="font-size:14px;">${round(val,2)}</div>
-                        <div style="font-size:12px;color:#333;">{cnt} bets</div>
-                    </div>
-                    """
+                    show_details = not (d > date.today() and cnt == 0)
+
+                    if show_details:
+                        html = f"""
+                        <div style="
+                            background-color:{bg};
+                            color:#000000;
+                            border-radius:10px;
+                            padding:8px;
+                            height:100px;
+                            border:1px solid #cbd5e0;
+                            display:flex;
+                            flex-direction:column;
+                            justify-content:space-between;
+                        ">
+                            <div style="font-size:18px;font-weight:700;">{day}</div>
+                            <div style="font-size:14px;">${round(val,2)}</div>
+                            <div style="font-size:12px;color:#333;">{cnt} bets</div>
+                        </div>
+                        """
+                    else:
+                        html = f"""
+                        <div style="
+                            background-color:{bg};
+                            color:#000000;
+                            border-radius:10px;
+                            padding:8px;
+                            height:100px;
+                            border:1px solid #cbd5e0;
+                            display:flex;
+                            flex-direction:column;
+                            justify-content:flex-start;
+                        ">
+                            <div style="font-size:18px;font-weight:700;">{day}</div>
+                        </div>
+                        """
 
                     cols[idx].markdown(html, unsafe_allow_html=True)
 
