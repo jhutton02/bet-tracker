@@ -229,3 +229,117 @@ with tab_add:
                 save_bet(bet)
                 st.session_state.bets = load_bets()
                 st.success("Bet added")
+
+# ================= CALENDAR TAB =================
+with tab_calendar:
+
+    st.subheader("Monthly Performance")
+
+    today = date.today()
+    year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
+
+    month_names = list(calendar.month_name)[1:]
+    selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
+    month = month_names.index(selected_month_name) + 1
+
+    totals = {}
+    counts = {}
+    monthly_total = 0
+    wins = losses = pushes = 0
+
+    for b in st.session_state.bets:
+        if b["date"].year == year and b["date"].month == month:
+            d = b["date"]
+            totals[d] = totals.get(d, 0) + b["profit"]
+            counts[d] = counts.get(d, 0) + 1
+
+            if b["result"] == "win":
+                wins += 1
+            if b["result"] == "loss":
+                losses += 1
+            if b["result"] == "push":
+                pushes += 1
+
+            if b["result"] in ["win","loss","push"]:
+                monthly_total += b["profit"]
+
+    total_bets = wins + losses + pushes
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Monthly $", f"${round(monthly_total,2)}")
+    c2.metric("Wins", wins)
+    c3.metric("Losses", losses)
+    c4.metric("Pushes", pushes)
+    c5.metric("Total Bets", total_bets)
+
+    st.markdown("---")
+
+    # Strong border around entire calendar
+    with st.container():
+        st.markdown("<div style='border:3px solid #000;border-radius:12px;padding:12px;'>", unsafe_allow_html=True)
+
+        headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+        cols = st.columns(7)
+        for i in range(7):
+            cols[i].markdown("**" + headers[i] + "**")
+
+        for week in calendar.monthcalendar(year, month):
+            cols = st.columns(7)
+            for idx, day in enumerate(week):
+                if day == 0:
+                    cols[idx].markdown(
+                        "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    d = date(year, month, day)
+                    val = totals.get(d, 0)
+                    cnt = counts.get(d, 0)
+
+                    if val > 0:
+                        bg = "#c6f6d5"
+                    elif val < 0:
+                        bg = "#fed7d7"
+                    else:
+                        bg = "#edf2f7"
+
+                    show_details = not (d > date.today() and cnt == 0)
+
+                    if show_details:
+                        html = f"""
+                        <div style="
+                            background-color:{bg};
+                            color:#000000;
+                            border-radius:10px;
+                            padding:8px;
+                            height:100px;
+                            border:1px solid #cbd5e0;
+                            display:flex;
+                            flex-direction:column;
+                            justify-content:space-between;
+                        ">
+                            <div style="font-size:18px;font-weight:700;">{day}</div>
+                            <div style="font-size:14px;">${round(val,2)}</div>
+                            <div style="font-size:12px;color:#333;">{cnt} bets</div>
+                        </div>
+                        """
+                    else:
+                        html = f"""
+                        <div style="
+                            background-color:{bg};
+                            color:#000000;
+                            border-radius:10px;
+                            padding:8px;
+                            height:100px;
+                            border:1px solid #cbd5e0;
+                            display:flex;
+                            flex-direction:column;
+                            justify-content:flex-start;
+                        ">
+                            <div style="font-size:18px;font-weight:700;">{day}</div>
+                        </div>
+                        """
+
+                    cols[idx].markdown(html, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
