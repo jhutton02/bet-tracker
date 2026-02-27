@@ -4,7 +4,7 @@ import calendar
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Bet Tracker", layout="wide")
+st.set_page_config(page_title="Bet Tracker", layout="centered")
 st.title("Bet Tracker")
 
 UNIT_SIZE = st.number_input("Dollar value per unit", value=100)
@@ -85,136 +85,23 @@ def calc_profit(units, odds, result):
         return -units
     return 0
 
-# ================= LOAD DATA =================
-
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
 tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
-
-# ================= TRACKER TAB =================
-with tab_tracker:
-
-    st.subheader("Bet Status Summary")
-
-    open_count = win_count = loss_count = push_count = 0
-    open_exposure = 0
-
-    for b in st.session_state.bets:
-        if b["result"] == "pending":
-            open_count += 1
-            open_exposure += b["units"] * UNIT_SIZE
-        if b["result"] == "win":
-            win_count += 1
-        if b["result"] == "loss":
-            loss_count += 1
-        if b["result"] == "push":
-            push_count += 1
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Open Bets", open_count)
-    c2.metric("Wins", win_count)
-    c3.metric("Losses", loss_count)
-    c4.metric("Pushes", push_count)
-    c5.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
-
-    st.sidebar.header("Filters")
-    sport_filter = st.sidebar.multiselect(
-        "Sport", ["NBA","NHL","NFL","MLB","Other"],
-        default=["NBA","NHL","NFL","MLB","Other"]
-    )
-    type_filter = st.sidebar.multiselect(
-        "Bet Type", ["Straight","Parlay"],
-        default=["Straight","Parlay"]
-    )
-    result_filter = st.sidebar.multiselect(
-        "Result", ["pending","win","loss","push"],
-        default=["pending","win","loss","push"]
-    )
-
-    st.subheader("Bets")
-    view_choice = st.radio("View", ["All","Open","Closed"], horizontal=True)
-
-    for i, b in enumerate(st.session_state.bets):
-        show = True
-        if view_choice == "Open" and b["result"] != "pending":
-            show = False
-        if view_choice == "Closed" and b["result"] == "pending":
-            show = False
-
-        if show and b["sport"] in sport_filter and b["bet_type"] in type_filter and b["result"] in result_filter:
-
-            color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
-
-            st.markdown(
-                f"<div style='background-color:{color};padding:8px;border-radius:6px;color:#000000;'>"
-                f"{b['date']} | {b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['odds']} | {b['result']} | ${round(b['profit'],2)}"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-
-            new_result = st.selectbox(
-                "Update Result",
-                ["pending","win","loss","push"],
-                index=["pending","win","loss","push"].index(b["result"]),
-                key="res" + str(i)
-            )
-
-            if new_result != b["result"]:
-                odds_val = parse_odds(b["odds"])
-                b["result"] = new_result
-                b["profit"] = calc_profit(b["units"], odds_val, new_result) * UNIT_SIZE
-                update_bet(i + 2, b)
-                st.rerun()
-
-            if st.button("Delete Bet", key="del" + str(i)):
-                delete_bet(i + 2)
-                st.session_state.bets = load_bets()
-                st.rerun()
-
-# ================= ADD BET TAB =================
-with tab_add:
-
-    st.subheader("Add Bet")
-
-    with st.form("add"):
-        bet_date = st.date_input("Date", date.today())
-        sport = st.selectbox("Sport", ["NBA","NHL","NFL","MLB","Other"])
-        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
-        bet_line = st.text_input("Bet Line (e.g. Mavericks ML)")
-        odds_text = st.text_input("Odds")
-        units = st.number_input("Units", min_value=0.5, step=0.5)
-        result = st.selectbox("Result", ["pending","win","loss","push"])
-        submitted = st.form_submit_button("Add Bet")
-
-        if submitted:
-            odds = parse_odds(odds_text)
-            if odds is None:
-                st.error("Invalid odds")
-            else:
-                profit = calc_profit(units, odds, result) * UNIT_SIZE
-                bet = {
-                    "date": bet_date,
-                    "sport": sport,
-                    "bet_type": bet_type,
-                    "bet_line": bet_line,
-                    "odds": odds_text,
-                    "units": units,
-                    "result": result,
-                    "profit": profit
-                }
-                save_bet(bet)
-                st.session_state.bets = load_bets()
-                st.success("Bet added")
 
 # ================= CALENDAR TAB =================
 with tab_calendar:
 
     today = date.today()
 
-    year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
-    month_names = list(calendar.month_name)[1:]
-    selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
+    col1, col2 = st.columns(2)
+    with col1:
+        year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
+    with col2:
+        month_names = list(calendar.month_name)[1:]
+        selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
+
     month = month_names.index(selected_month_name) + 1
 
     st.markdown(
@@ -243,7 +130,7 @@ with tab_calendar:
         for idx, day in enumerate(week):
             if day == 0:
                 cols[idx].markdown(
-                    "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>",
+                    "<div style='height:115px;border:1px solid #e2e8f0;border-radius:10px'></div>",
                     unsafe_allow_html=True
                 )
             else:
@@ -264,7 +151,7 @@ with tab_calendar:
                     color:#000000;
                     border-radius:10px;
                     padding:8px;
-                    height:100px;
+                    height:115px;
                     border:1px solid #cbd5e0;
                     display:flex;
                     flex-direction:column;
