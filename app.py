@@ -90,6 +90,9 @@ def calc_profit(units, odds, result):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
+if "selected_day" not in st.session_state:
+    st.session_state.selected_day = None
+
 tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
 # ================= TRACKER TAB =================
@@ -153,14 +156,18 @@ with tab_add:
 
 # ================= CALENDAR TAB =================
 with tab_calendar:
-    st.subheader("Monthly Calendar")
-
     today = date.today()
     year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
 
     month_names = list(calendar.month_name)[1:]
     selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
     month = month_names.index(selected_month_name) + 1
+
+    # 🔹 Big month title above the calendar
+    st.markdown(
+        f"<h2 style='text-align:center;margin-bottom:10px;'>{selected_month_name} {year}</h2>",
+        unsafe_allow_html=True
+    )
 
     totals = {}
     counts = {}
@@ -171,47 +178,72 @@ with tab_calendar:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
-    cols = st.columns(7)
-    for i in range(7):
-        cols[i].markdown("**" + headers[i] + "**")
+    # 🔹 Strong border around the entire month grid
+    with st.container():
+        st.markdown("<div style='border:4px solid #000;border-radius:14px;padding:14px;'>", unsafe_allow_html=True)
 
-    for week in calendar.monthcalendar(year, month):
+        headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
         cols = st.columns(7)
-        for idx, day in enumerate(week):
-            if day == 0:
-                cols[idx].markdown(
-                    "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>",
-                    unsafe_allow_html=True
-                )
-            else:
-                d = date(year, month, day)
-                val = totals.get(d, 0)
-                cnt = counts.get(d, 0)
+        for i in range(7):
+            cols[i].markdown("**" + headers[i] + "**")
 
-                if val > 0:
-                    bg = "#c6f6d5"
-                elif val < 0:
-                    bg = "#fed7d7"
+        for week in calendar.monthcalendar(year, month):
+            cols = st.columns(7)
+            for idx, day in enumerate(week):
+                if day == 0:
+                    cols[idx].markdown(
+                        "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>",
+                        unsafe_allow_html=True
+                    )
                 else:
-                    bg = "#edf2f7"
+                    d = date(year, month, day)
+                    val = totals.get(d, 0)
+                    cnt = counts.get(d, 0)
 
-                html = f"""
-                <div style="
-                    background-color:{bg};
-                    color:#000000;
-                    border-radius:10px;
-                    padding:8px;
-                    height:100px;
-                    border:1px solid #cbd5e0;
-                    display:flex;
-                    flex-direction:column;
-                    justify-content:space-between;
-                ">
-                    <div style="font-size:18px;font-weight:700;">{day}</div>
-                    <div style="font-size:14px;">${round(val,2)}</div>
-                    <div style="font-size:12px;color:#333;">{cnt} bets</div>
-                </div>
-                """
+                    if val > 0:
+                        bg = "#c6f6d5"
+                    elif val < 0:
+                        bg = "#fed7d7"
+                    else:
+                        bg = "#edf2f7"
 
-                cols[idx].markdown(html, unsafe_allow_html=True)
+                    show_details = not (d > date.today() and cnt == 0)
+
+                    if show_details:
+                        html = f"""
+                        <div style="
+                            background-color:{bg};
+                            color:#000000;
+                            border-radius:10px;
+                            padding:8px;
+                            height:100px;
+                            border:1px solid #cbd5e0;
+                            display:flex;
+                            flex-direction:column;
+                            justify-content:space-between;
+                        ">
+                            <div style="font-size:18px;font-weight:700;">{day}</div>
+                            <div style="font-size:14px;">${round(val,2)}</div>
+                            <div style="font-size:12px;color:#333;">{cnt} bets</div>
+                        </div>
+                        """
+                    else:
+                        html = f"""
+                        <div style="
+                            background-color:{bg};
+                            color:#000000;
+                            border-radius:10px;
+                            padding:8px;
+                            height:100px;
+                            border:1px solid #cbd5e0;
+                            display:flex;
+                            flex-direction:column;
+                            justify-content:flex-start;
+                        ">
+                            <div style="font-size:18px;font-weight:700;">{day}</div>
+                        </div>
+                        """
+
+                    cols[idx].markdown(html, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
