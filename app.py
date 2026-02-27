@@ -49,6 +49,21 @@ def save_bet(bet):
         bet["profit"]
     ])
 
+def update_bet(row_index, bet):
+    sheet.update(f"A{row_index}:H{row_index}", [[
+        str(bet["date"]),
+        bet["sport"],
+        bet["bet_type"],
+        bet["bet_line"],
+        bet["odds"],
+        bet["units"],
+        bet["result"],
+        bet["profit"]
+    ]])
+
+def delete_bet(row_index):
+    sheet.delete_rows(row_index)
+
 def parse_odds(text):
     try:
         return float(text.lower().replace("x", "").strip())
@@ -138,14 +153,14 @@ with tab_add:
 
 # ================= CALENDAR TAB =================
 with tab_calendar:
+    st.subheader("Monthly Calendar")
+
     today = date.today()
     year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
 
     month_names = list(calendar.month_name)[1:]
     selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
     month = month_names.index(selected_month_name) + 1
-
-    st.markdown(f"<h2 style='text-align:center'>{selected_month_name} {year}</h2>", unsafe_allow_html=True)
 
     totals = {}
     counts = {}
@@ -156,22 +171,19 @@ with tab_calendar:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    # Build calendar grid in HTML
-    weeks = calendar.monthcalendar(year, month)
-
-    html = """
-    <div style="border:4px solid #000;border-radius:14px;padding:12px;">
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">
-    """
-
     headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
-    for h in headers:
-        html += f"<div style='font-weight:700;text-align:center'>{h}</div>"
+    cols = st.columns(7)
+    for i in range(7):
+        cols[i].markdown("**" + headers[i] + "**")
 
-    for week in weeks:
-        for day in week:
+    for week in calendar.monthcalendar(year, month):
+        cols = st.columns(7)
+        for idx, day in enumerate(week):
             if day == 0:
-                html += "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>"
+                cols[idx].markdown(
+                    "<div style='height:100px;border:1px solid #e2e8f0;border-radius:10px'></div>",
+                    unsafe_allow_html=True
+                )
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
@@ -184,28 +196,22 @@ with tab_calendar:
                 else:
                     bg = "#edf2f7"
 
-                show_details = not (d > date.today() and cnt == 0)
+                html = f"""
+                <div style="
+                    background-color:{bg};
+                    color:#000000;
+                    border-radius:10px;
+                    padding:8px;
+                    height:100px;
+                    border:1px solid #cbd5e0;
+                    display:flex;
+                    flex-direction:column;
+                    justify-content:space-between;
+                ">
+                    <div style="font-size:18px;font-weight:700;">{day}</div>
+                    <div style="font-size:14px;">${round(val,2)}</div>
+                    <div style="font-size:12px;color:#333;">{cnt} bets</div>
+                </div>
+                """
 
-                if show_details:
-                    cell = f"""
-                    <div style="background:{bg};color:#000;border-radius:10px;padding:8px;height:100px;border:1px solid #cbd5e0;
-                    display:flex;flex-direction:column;justify-content:space-between;">
-                        <div style="font-size:18px;font-weight:700;">{day}</div>
-                        <div style="font-size:14px;">${round(val,2)}</div>
-                        <div style="font-size:12px;color:#333;">{cnt} bets</div>
-                    </div>
-                    """
-                else:
-                    cell = f"""
-                    <div style="background:{bg};color:#000;border-radius:10px;padding:8px;height:100px;border:1px solid #cbd5e0;
-                    display:flex;flex-direction:column;justify-content:flex-start;">
-                        <div style="font-size:18px;font-weight:700;">{day}</div>
-                    </div>
-                    """
-
-                html += cell
-
-    html += "</div></div>"
-
-    st.markdown(html, unsafe_allow_html=True)
-
+                cols[idx].markdown(html, unsafe_allow_html=True)
