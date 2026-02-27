@@ -274,7 +274,6 @@ with tab_calendar:
 
     st.markdown("---")
 
-    # Strong border around entire calendar
     with st.container():
         st.markdown("<div style='border:3px solid #000;border-radius:12px;padding:12px;'>", unsafe_allow_html=True)
 
