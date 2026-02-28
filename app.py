@@ -109,7 +109,6 @@ with tab_tracker:
         if b["result"] == "push":
             push_count += 1
 
-    # Mobile-friendly stacked metrics
     c1, c2 = st.columns(2)
     c3, c4 = st.columns(2)
 
@@ -119,44 +118,6 @@ with tab_tracker:
     c4.metric("Pushes", push_count)
 
     st.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
-
-    st.subheader("Filters")
-
-    sport_filter = st.multiselect(
-        "Sport", ["NBA","NHL","NFL","MLB","Other"],
-        default=["NBA","NHL","NFL","MLB","Other"]
-    )
-    type_filter = st.multiselect(
-        "Bet Type", ["Straight","Parlay"],
-        default=["Straight","Parlay"]
-    )
-    result_filter = st.multiselect(
-        "Result", ["pending","win","loss","push"],
-        default=["pending","win","loss","push"]
-    )
-
-    st.subheader("Bets")
-    view_choice = st.radio("View", ["All","Open","Closed"], horizontal=True)
-
-    for i, b in enumerate(st.session_state.bets):
-        show = True
-        if view_choice == "Open" and b["result"] != "pending":
-            show = False
-        if view_choice == "Closed" and b["result"] == "pending":
-            show = False
-
-        if show and b["sport"] in sport_filter and b["bet_type"] in type_filter and b["result"] in result_filter:
-
-            color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
-
-            st.markdown(
-                f"<div style='background-color:{color};padding:14px;border-radius:10px;color:#000000;margin-bottom:10px;'>"
-                f"{b['date']} | {b['sport']} | {b['bet_type']}<br>"
-                f"{b['bet_line']} | {b['odds']} | {b['result']}<br>"
-                f"<b>${round(b['profit'],2)}</b>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
 
 # ================= ADD BET TAB =================
 with tab_add:
@@ -192,3 +153,80 @@ with tab_add:
                 save_bet(bet)
                 st.session_state.bets = load_bets()
                 st.success("Bet added")
+
+# ================= CALENDAR TAB =================
+with tab_calendar:
+
+    today = date.today()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
+    with col2:
+        month_names = list(calendar.month_name)[1:]
+        selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
+
+    month = month_names.index(selected_month_name) + 1
+
+    st.markdown(
+        f"<h2 style='text-align:center;margin-top:10px;'>{selected_month_name} {year}</h2>",
+        unsafe_allow_html=True
+    )
+
+    totals = {}
+    counts = {}
+
+    for b in st.session_state.bets:
+        if b["date"].year == year and b["date"].month == month:
+            d = b["date"]
+            totals[d] = totals.get(d, 0) + b["profit"]
+            counts[d] = counts.get(d, 0) + 1
+
+    st.markdown("<div style='border:4px solid black;border-radius:16px;padding:15px;'>", unsafe_allow_html=True)
+
+    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+    cols = st.columns(7)
+    for i in range(7):
+        cols[i].markdown("**" + headers[i] + "**")
+
+    for week in calendar.monthcalendar(year, month):
+        cols = st.columns(7)
+        for idx, day in enumerate(week):
+            if day == 0:
+                cols[idx].markdown(
+                    "<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px'></div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                d = date(year, month, day)
+                val = totals.get(d, 0)
+                cnt = counts.get(d, 0)
+
+                if val > 0:
+                    bg = "#c6f6d5"
+                elif val < 0:
+                    bg = "#fed7d7"
+                else:
+                    bg = "#edf2f7"
+
+                html = f"""
+                <div style="
+                    background-color:{bg};
+                    color:#000000;
+                    border-radius:10px;
+                    padding:8px;
+                    height:110px;
+                    border:1px solid #cbd5e0;
+                    display:flex;
+                    flex-direction:column;
+                    justify-content:space-between;
+                ">
+                    <div style="font-size:18px;font-weight:700;">{day}</div>
+                    <div style="font-size:14px;">${round(val,2)}</div>
+                    <div style="font-size:12px;color:#333;">{cnt} bets</div>
+                </div>
+                """
+
+                cols[idx].markdown(html, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
