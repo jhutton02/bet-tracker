@@ -119,6 +119,40 @@ with tab_tracker:
 
     st.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
 
+    st.subheader("Bets")
+
+    for i, b in enumerate(st.session_state.bets):
+
+        color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
+
+        st.markdown(
+            f"<div style='background-color:{color};padding:14px;border-radius:10px;color:#000000;margin-bottom:10px;'>"
+            f"{b['date']} | {b['sport']} | {b['bet_type']}<br>"
+            f"{b['bet_line']} | {b['odds']} | {b['result']}<br>"
+            f"<b>${round(b['profit'],2)}</b>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        new_result = st.selectbox(
+            "Update Result",
+            ["pending","win","loss","push"],
+            index=["pending","win","loss","push"].index(b["result"]),
+            key="res" + str(i)
+        )
+
+        if new_result != b["result"]:
+            odds_val = parse_odds(b["odds"])
+            b["result"] = new_result
+            b["profit"] = calc_profit(b["units"], odds_val, new_result) * UNIT_SIZE
+            update_bet(i + 2, b)
+            st.rerun()
+
+        if st.button("Delete Bet", key="del" + str(i)):
+            delete_bet(i + 2)
+            st.session_state.bets = load_bets()
+            st.rerun()
+
 # ================= ADD BET TAB =================
 with tab_add:
 
