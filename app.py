@@ -134,25 +134,6 @@ with tab_tracker:
             unsafe_allow_html=True
         )
 
-        new_result = st.selectbox(
-            "Update Result",
-            ["pending","win","loss","push"],
-            index=["pending","win","loss","push"].index(b["result"]),
-            key="res" + str(i)
-        )
-
-        if new_result != b["result"]:
-            odds_val = parse_odds(b["odds"])
-            b["result"] = new_result
-            b["profit"] = calc_profit(b["units"], odds_val, new_result) * UNIT_SIZE
-            update_bet(i + 2, b)
-            st.rerun()
-
-        if st.button("Delete Bet", key="del" + str(i)):
-            delete_bet(i + 2)
-            st.session_state.bets = load_bets()
-            st.rerun()
-
 # ================= ADD BET TAB =================
 with tab_add:
 
@@ -202,8 +183,17 @@ with tab_calendar:
 
     month = month_names.index(selected_month_name) + 1
 
+    # Calculate Monthly Total
+    monthly_total = 0
+    for b in st.session_state.bets:
+        if b["date"].year == year and b["date"].month == month and b["result"] in ["win","loss","push"]:
+            monthly_total += b["profit"]
+
+    total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
+
     st.markdown(
-        f"<h2 style='text-align:center;margin-top:10px;'>{selected_month_name} {year}</h2>",
+        f"<h2 style='text-align:center;'>{selected_month_name} {year} "
+        f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
         unsafe_allow_html=True
     )
 
@@ -236,12 +226,7 @@ with tab_calendar:
                 val = totals.get(d, 0)
                 cnt = counts.get(d, 0)
 
-                if val > 0:
-                    bg = "#c6f6d5"
-                elif val < 0:
-                    bg = "#fed7d7"
-                else:
-                    bg = "#edf2f7"
+                bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
 
                 html = f"""
                 <div style="
