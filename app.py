@@ -124,6 +124,7 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
+    # RESTORED BLACK BORDER
     st.markdown("<div style='border:6px solid black;border-radius:20px;padding:20px;'>", unsafe_allow_html=True)
 
     headers = st.columns(7)
@@ -139,17 +140,40 @@ with tab_calendar:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
 
-                bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
+                # GREEN / RED COLORING
+                if val > 0:
+                    bg_color = "#c6f6d5"
+                elif val < 0:
+                    bg_color = "#fed7d7"
+                else:
+                    bg_color = "#edf2f7"
 
-                # Highlight selected day
-                border = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
+                # Selected day highlight
+                border_style = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
 
-                if cols[idx].button(
-                    f"{day}\n${round(val,2)}",
-                    key=f"day_{d}"
-                ):
+                # Bigger button styling
+                button_html = f"""
+                <div style="
+                    background-color:{bg_color};
+                    border:{border_style};
+                    border-radius:12px;
+                    height:130px;
+                    display:flex;
+                    flex-direction:column;
+                    justify-content:space-between;
+                    padding:10px;
+                    font-weight:600;
+                ">
+                    <div style="font-size:20px;">{day}</div>
+                    <div>${round(val,2)}</div>
+                </div>
+                """
+
+                if cols[idx].button(" ", key=f"day_{d}"):
                     st.session_state.selected_date = d
                     st.rerun()
+
+                cols[idx].markdown(button_html, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
