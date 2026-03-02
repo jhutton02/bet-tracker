@@ -1,52 +1,7 @@
-import streamlit as st
-from datetime import date
-import calendar
-import gspread
-from google.oauth2.service_account import Credentials
-
-st.set_page_config(page_title="Bet Tracker", layout="centered")
-st.title("Bet Tracker")
-
-UNIT_SIZE = st.number_input("Dollar value per unit", value=100)
-
-# ================= GOOGLE SHEETS SETUP =================
-
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-creds_dict = st.secrets["gcp_service_account"]
-creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-gc = gspread.authorize(creds)
-
-SHEET_ID = "1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q"
-sheet = gc.open_by_key(SHEET_ID).sheet1
-
-# ================= HELPERS =================
-
-def load_bets():
-    rows = sheet.get_all_records()
-    bets = []
-    for r in rows:
-        b = {}
-        b["date"] = date.fromisoformat(str(r["date"]))
-        b["sport"] = r["sport"]
-        b["bet_type"] = r["bet_type"]
-        b["bet_line"] = r["bet_line"]
-        b["odds"] = r["odds"]
-        b["units"] = float(r["units"])
-        b["result"] = r["result"]
-        b["profit"] = float(r["profit"])
-        bets.append(b)
-    return bets
-
-if "bets" not in st.session_state:
-    st.session_state.bets = load_bets()
-
-if "selected_date" not in st.session_state:
-    st.session_state.selected_date = None
-
-tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
-
 # ================= CALENDAR TAB =================
 with tab_calendar:
+
+    import streamlit.components.v1 as components
 
     today = date.today()
 
@@ -76,57 +31,61 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    # Black border around calendar
-    with st.container():
-        st.markdown(
-            "<div style='border:6px solid black;border-radius:20px;padding:20px;'>",
-            unsafe_allow_html=True
-        )
+    calendar_html = f"""
+    <div style="
+        border:6px solid black;
+        border-radius:20px;
+        padding:25px;
+        font-family:sans-serif;
+    ">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:15px;font-weight:700;margin-bottom:10px;">
+            {"".join([f"<div style='text-align:center;'>{h}</div>" for h in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']])}
+        </div>
 
-        headers = st.columns(7)
-        for i, h in enumerate(["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]):
-            headers[i].markdown(f"**{h}**")
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:15px;">
+    """
 
-        for week in calendar.monthcalendar(year, month):
-            cols = st.columns(7)
-            for idx, day in enumerate(week):
-                if day == 0:
-                    cols[idx].write("")
+    for week in calendar.monthcalendar(year, month):
+        for day in week:
+            if day == 0:
+                calendar_html += "<div></div>"
+            else:
+                d = date(year, month, day)
+                val = totals.get(d, 0)
+
+                if val > 0:
+                    bg = "#c6f6d5"
+                elif val < 0:
+                    bg = "#fed7d7"
                 else:
-                    d = date(year, month, day)
-                    val = totals.get(d, 0)
+                    bg = "#edf2f7"
 
-                    if val > 0:
-                        bg = "#c6f6d5"
-                    elif val < 0:
-                        bg = "#fed7d7"
-                    else:
-                        bg = "#edf2f7"
+                border = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
 
-                    selected = st.session_state.selected_date == d
-                    border = "3px solid blue" if selected else "1px solid #cbd5e0"
+                calendar_html += f"""
+                <div onclick="window.parent.postMessage({{selected:'{d}'}}, '*')" 
+                     style="
+                        background:{bg};
+                        border:{border};
+                        border-radius:12px;
+                        height:140px;
+                        padding:10px;
+                        display:flex;
+                        flex-direction:column;
+                        justify-content:space-between;
+                        cursor:pointer;
+                        font-weight:600;
+                     ">
+                    <div style="font-size:18px;">{day}</div>
+                    <div>${round(val,2)}</div>
+                </div>
+                """
 
-                    label = f"{day}\n${round(val,2)}"
+    calendar_html += "</div></div>"
 
-                    if cols[idx].button(label, key=str(d)):
-                        st.session_state.selected_date = d
-                        st.rerun()
-
-                    cols[idx].markdown(
-                        f"""
-                        <style>
-                        button[kind="secondary"] {{
-                            height:140px;
-                        }}
-                        </style>
-                        """,
-                        unsafe_allow_html=True
-                    )
-
-        st.markdown("</div>", unsafe_allow_html=True)
+    components.html(calendar_html, height=800)
 
     # ================= DAILY DETAILS =================
-
     if st.session_state.selected_date:
         selected = st.session_state.selected_date
         st.markdown("---")
@@ -145,9 +104,3 @@ with tab_calendar:
             st.metric("Daily Profit", f"${round(daily_profit,2)}")
             st.metric("Units Risked", daily_units)
             st.metric("Record", f"{wins}-{losses}")
-
-            for b in day_bets:
-                st.markdown(
-                    f"{b['sport']} | {b['bet_type']} | {b['bet_line']} | "
-                    f"{b['result']} | ${round(b['profit'],2)}"
-                )
