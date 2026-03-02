@@ -90,106 +90,6 @@ if "bets" not in st.session_state:
 
 tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
-# ================= TRACKER TAB =================
-with tab_tracker:
-    st.subheader("Bet Status Summary")
-
-    open_count = win_count = loss_count = push_count = 0
-    open_exposure = 0
-
-    for b in st.session_state.bets:
-        if b["result"] == "pending":
-            open_count += 1
-            open_exposure += b["units"] * UNIT_SIZE
-        if b["result"] == "win":
-            win_count += 1
-        if b["result"] == "loss":
-            loss_count += 1
-        if b["result"] == "push":
-            push_count += 1
-
-    c1, c2 = st.columns(2)
-    c3, c4 = st.columns(2)
-
-    c1.metric("Open Bets", open_count)
-    c2.metric("Wins", win_count)
-    c3.metric("Losses", loss_count)
-    c4.metric("Pushes", push_count)
-
-    st.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
-
-    st.markdown("---")
-    st.subheader("Bet History")
-
-    if len(st.session_state.bets) == 0:
-        st.info("No bets yet.")
-    else:
-        for i, b in enumerate(st.session_state.bets):
-
-            color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
-
-            st.markdown(
-                f"<div style='background-color:{color};padding:14px;border-radius:10px;color:#000000;margin-bottom:10px;'>"
-                f"{b['date']} | {b['sport']} | {b['bet_type']}<br>"
-                f"{b['bet_line']} | {b['odds']} | {b['result']}<br>"
-                f"<b>${round(b['profit'],2)}</b>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-
-            new_result = st.selectbox(
-                "Update Result",
-                ["pending","win","loss","push"],
-                index=["pending","win","loss","push"].index(b["result"]),
-                key="res" + str(i)
-            )
-
-            if new_result != b["result"]:
-                odds_val = parse_odds(b["odds"])
-                b["result"] = new_result
-                b["profit"] = calc_profit(b["units"], odds_val, new_result) * UNIT_SIZE
-                update_bet(i + 2, b)
-                st.rerun()
-
-            if st.button("Delete Bet", key="del" + str(i)):
-                delete_bet(i + 2)
-                st.session_state.bets = load_bets()
-                st.rerun()
-
-# ================= ADD BET TAB =================
-with tab_add:
-    st.subheader("Add Bet")
-
-    with st.form("add"):
-        bet_date = st.date_input("Date", date.today())
-        sport = st.selectbox("Sport", ["NBA","NHL","NFL","MLB","Other"])
-        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
-        bet_line = st.text_input("Bet Line (e.g. Mavericks ML)")
-        odds_text = st.text_input("Odds")
-        units = st.number_input("Units", min_value=0.5, step=0.5)
-        result = st.selectbox("Result", ["pending","win","loss","push"])
-        submitted = st.form_submit_button("Add Bet")
-
-        if submitted:
-            odds = parse_odds(odds_text)
-            if odds is None:
-                st.error("Invalid odds")
-            else:
-                profit = calc_profit(units, odds, result) * UNIT_SIZE
-                bet = {
-                    "date": bet_date,
-                    "sport": sport,
-                    "bet_type": bet_type,
-                    "bet_line": bet_line,
-                    "odds": odds_text,
-                    "units": units,
-                    "result": result,
-                    "profit": profit
-                }
-                save_bet(bet)
-                st.session_state.bets = load_bets()
-                st.success("Bet added")
-
 # ================= CALENDAR TAB =================
 with tab_calendar:
 
@@ -221,31 +121,38 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    # 🔥 BLACK BORDER NOW WRAPS THE ACTUAL CALENDAR GRID
-    st.markdown("<div style='border:6px solid black;border-radius:18px;padding:25px;background-color:white;box-shadow:0 4px 10px rgba(0,0,0,0.15);'>", unsafe_allow_html=True)
+    # TRUE CALENDAR CONTAINER
+    calendar_html = """
+    <div style='
+        border:6px solid black;
+        border-radius:20px;
+        padding:25px;
+        background:white;
+        box-shadow:0 6px 14px rgba(0,0,0,0.15);
+    '>
+    """
 
-    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
-    cols = st.columns(7)
-    for i in range(7):
-        cols[i].markdown("**" + headers[i] + "**")
+    # Headers
+    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:10px;font-weight:700;'>"
+    for h in ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]:
+        calendar_html += f"<div style='text-align:center;'>{h}</div>"
+    calendar_html += "</div>"
+
+    # Days
+    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:10px;'>"
 
     for week in calendar.monthcalendar(year, month):
-        cols = st.columns(7)
-        for idx, day in enumerate(week):
+        for day in week:
             if day == 0:
-                cols[idx].markdown(
-                    "<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px'></div>",
-                    unsafe_allow_html=True
-                )
+                calendar_html += "<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px;'></div>"
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
                 bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
 
-                html = f"""
-                <div style="
-                    background-color:{bg};
-                    color:#000000;
+                calendar_html += f"""
+                <div style='
+                    background:{bg};
                     border-radius:10px;
                     padding:8px;
                     height:110px;
@@ -253,12 +160,12 @@ with tab_calendar:
                     display:flex;
                     flex-direction:column;
                     justify-content:space-between;
-                ">
-                    <div style="font-size:18px;font-weight:700;">{day}</div>
-                    <div style="font-size:14px;">${round(val,2)}</div>
+                '>
+                    <div style='font-weight:700;font-size:18px;'>{day}</div>
+                    <div>${round(val,2)}</div>
                 </div>
                 """
 
-                cols[idx].markdown(html, unsafe_allow_html=True)
+    calendar_html += "</div></div>"
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(calendar_html, unsafe_allow_html=True)
