@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date
+from datetime import date, timedelta
 import calendar
 import gspread
 from google.oauth2.service_account import Credentials
@@ -37,16 +37,139 @@ def load_bets():
         bets.append(b)
     return bets
 
+def save_bet(bet):
+    sheet.append_row([
+        str(bet["date"]),
+        bet["sport"],
+        bet["bet_type"],
+        bet["bet_line"],
+        bet["odds"],
+        bet["units"],
+        bet["result"],
+        bet["profit"]
+    ])
+
+def update_bet(row_index, bet):
+    sheet.update(f"A{row_index}:H{row_index}", [[
+        str(bet["date"]),
+        bet["sport"],
+        bet["bet_type"],
+        bet["bet_line"],
+        bet["odds"],
+        bet["units"],
+        bet["result"],
+        bet["profit"]
+    ]])
+
+def delete_bet(row_index):
+    sheet.delete_rows(row_index)
+
+def parse_odds(text):
+    try:
+        return float(text.lower().replace("x", "").strip())
+    except:
+        return None
+
+def calc_profit(units, odds, result):
+    if result == "pending":
+        return 0
+    if odds >= 1.01 and odds < 10 and result == "win":
+        return units * (odds - 1)
+    if odds >= 1.01 and odds < 10 and result == "loss":
+        return -units
+    if result == "win" and odds > 0:
+        return units * (odds / 100)
+    if result == "win" and odds < 0:
+        return units * (100 / abs(odds))
+    if result == "loss":
+        return -units
+    return 0
+
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
-if "selected_date" not in st.session_state:
-    st.session_state.selected_date = None
-
 tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
-# ================= CALENDAR TAB =================
+# ================= TRACKER TAB =================
+with tab_tracker:
 
+    st.subheader("Bet Status Summary")
+
+    open_count = win_count = loss_count = push_count = 0
+    open_exposure = 0
+
+    for b in st.session_state.bets:
+        if b["result"] == "pending":
+            open_count += 1
+            open_exposure += b["units"] * UNIT_SIZE
+        if b["result"] == "win":
+            win_count += 1
+        if b["result"] == "loss":
+            loss_count += 1
+        if b["result"] == "push":
+            push_count += 1
+
+    c1, c2 = st.columns(2)
+    c3, c4 = st.columns(2)
+
+    c1.metric("Open Bets", open_count)
+    c2.metric("Wins", win_count)
+    c3.metric("Losses", loss_count)
+    c4.metric("Pushes", push_count)
+
+    st.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
+
+    st.subheader("Bets")
+
+    for i, b in enumerate(st.session_state.bets):
+
+        color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
+
+        st.markdown(
+            f"<div style='background-color:{color};padding:14px;border-radius:10px;color:#000000;margin-bottom:10px;'>"
+            f"{b['date']} | {b['sport']} | {b['bet_type']}<br>"
+            f"{b['bet_line']} | {b['odds']} | {b['result']}<br>"
+            f"<b>${round(b['profit'],2)}</b>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+# ================= ADD BET TAB =================
+with tab_add:
+
+    st.subheader("Add Bet")
+
+    with st.form("add"):
+        bet_date = st.date_input("Date", date.today())
+        sport = st.selectbox("Sport", ["NBA","NHL","NFL","MLB","Other"])
+        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
+        bet_line = st.text_input("Bet Line (e.g. Mavericks ML)")
+        odds_text = st.text_input("Odds")
+        units = st.number_input("Units", min_value=0.5, step=0.5)
+        result = st.selectbox("Result", ["pending","win","loss","push"])
+        submitted = st.form_submit_button("Add Bet")
+
+        if submitted:
+            odds = parse_odds(odds_text)
+            if odds is None:
+                st.error("Invalid odds")
+            else:
+                profit = calc_profit(units, odds, result) * UNIT_SIZE
+                bet = {
+                    "date": bet_date,
+                    "sport": sport,
+                    "bet_type": bet_type,
+                    "bet_line": bet_line,
+                    "odds": odds_text,
+                    "units": units,
+                    "result": result,
+                    "profit": profit
+                }
+                save_bet(bet)
+                st.session_state.bets = load_bets()
+                st.success("Bet added")
+
+# ================= CALENDAR TAB =================
 with tab_calendar:
 
     today = date.today()
@@ -60,95 +183,69 @@ with tab_calendar:
 
     month = month_names.index(selected_month_name) + 1
 
-    totals = {}
+    # Calculate Monthly Total
     monthly_total = 0
-
     for b in st.session_state.bets:
-        if b["date"].year == year and b["date"].month == month:
-            totals[b["date"]] = totals.get(b["date"], 0) + b["profit"]
-            if b["result"] in ["win","loss","push"]:
-                monthly_total += b["profit"]
+        if b["date"].year == year and b["date"].month == month and b["result"] in ["win","loss","push"]:
+            monthly_total += b["profit"]
 
     total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
 
     st.markdown(
-        f"<h2 style='text-align:center;margin-bottom:20px;'>{selected_month_name} {year} "
+        f"<h2 style='text-align:center;'>{selected_month_name} {year} "
         f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
         unsafe_allow_html=True
     )
 
-    # ===== Proper bordered container =====
-    with st.container():
-        st.markdown(
-            "<div style='border:6px solid black;border-radius:20px;padding:20px;'>",
-            unsafe_allow_html=True
-        )
+    totals = {}
+    counts = {}
 
-        header_cols = st.columns(7)
-        for i, h in enumerate(["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]):
-            header_cols[i].markdown(f"**{h}**")
+    for b in st.session_state.bets:
+        if b["date"].year == year and b["date"].month == month:
+            d = b["date"]
+            totals[d] = totals.get(d, 0) + b["profit"]
+            counts[d] = counts.get(d, 0) + 1
 
-        for week in calendar.monthcalendar(year, month):
-            cols = st.columns(7)
-            for idx, day in enumerate(week):
-                if day == 0:
-                    cols[idx].write("")
-                else:
-                    d = date(year, month, day)
-                    val = totals.get(d, 0)
+    st.markdown("<div style='border:4px solid black;border-radius:16px;padding:15px;'>", unsafe_allow_html=True)
 
-                    if val > 0:
-                        bg = "#c6f6d5"
-                    elif val < 0:
-                        bg = "#fed7d7"
-                    else:
-                        bg = "#edf2f7"
+    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+    cols = st.columns(7)
+    for i in range(7):
+        cols[i].markdown("**" + headers[i] + "**")
 
-                    selected = st.session_state.selected_date == d
-                    border = "4px solid blue" if selected else "1px solid #cbd5e0"
+    for week in calendar.monthcalendar(year, month):
+        cols = st.columns(7)
+        for idx, day in enumerate(week):
+            if day == 0:
+                cols[idx].markdown(
+                    "<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px'></div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                d = date(year, month, day)
+                val = totals.get(d, 0)
+                cnt = counts.get(d, 0)
 
-                    box_html = f"""
-                    <div style="
-                        background:{bg};
-                        border:{border};
-                        border-radius:12px;
-                        height:140px;
-                        padding:10px;
-                        display:flex;
-                        flex-direction:column;
-                        justify-content:space-between;
-                        font-weight:600;
-                    ">
-                        <div style="font-size:18px;">{day}</div>
-                        <div>${round(val,2)}</div>
-                    </div>
-                    """
+                bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
 
-                    if cols[idx].button("", key=str(d)):
-                        st.session_state.selected_date = d
-                        st.rerun()
+                html = f"""
+                <div style="
+                    background-color:{bg};
+                    color:#000000;
+                    border-radius:10px;
+                    padding:8px;
+                    height:110px;
+                    border:1px solid #cbd5e0;
+                    display:flex;
+                    flex-direction:column;
+                    justify-content:space-between;
+                ">
+                    <div style="font-size:18px;font-weight:700;">{day}</div>
+                    <div style="font-size:14px;">${round(val,2)}</div>
+                    <div style="font-size:12px;color:#333;">{cnt} bets</div>
+                </div>
+                """
 
-                    cols[idx].markdown(box_html, unsafe_allow_html=True)
+                cols[idx].markdown(html, unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # ===== Daily Details =====
-
-    if st.session_state.selected_date:
-        selected = st.session_state.selected_date
-        st.markdown("---")
-        st.subheader(f"Bets for {selected}")
-
-        day_bets = [b for b in st.session_state.bets if b["date"] == selected]
-
-        if len(day_bets) == 0:
-            st.info("No bets this day.")
-        else:
-            daily_profit = sum(b["profit"] for b in day_bets)
-            daily_units = sum(b["units"] for b in day_bets)
-            wins = len([b for b in day_bets if b["result"] == "win"])
-            losses = len([b for b in day_bets if b["result"] == "loss"])
-
-            st.metric("Daily Profit", f"${round(daily_profit,2)}")
-            st.metric("Units Risked", daily_units)
-            st.metric("Record", f"{wins}-{losses}")
+    st.markdown("</div>", unsafe_allow_html=True)
