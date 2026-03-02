@@ -73,6 +73,9 @@ def calc_profit(units, odds, result):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
+if "selected_date" not in st.session_state:
+    st.session_state.selected_date = None
+
 tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
 # ================= TRACKER TAB =================
@@ -107,7 +110,6 @@ with tab_tracker:
     st.subheader("Bets")
 
     for b in st.session_state.bets:
-
         color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
 
         st.markdown(
@@ -157,6 +159,18 @@ with tab_add:
 # ================= CALENDAR TAB =================
 with tab_calendar:
 
+    # Force square styling
+    st.markdown("""
+        <style>
+        div[data-testid="stButton"] button {
+            width: 100%;
+            height: 110px;
+            white-space: pre-line;
+            font-weight: 600;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     today = date.today()
 
     col1, col2 = st.columns(2)
@@ -168,29 +182,11 @@ with tab_calendar:
 
     month = month_names.index(selected_month_name) + 1
 
-    monthly_total = 0
-    for b in st.session_state.bets:
-        if b["date"].year == year and b["date"].month == month and b["result"] in ["win","loss","push"]:
-            monthly_total += b["profit"]
-
-    total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
-
-    st.markdown(
-        f"<h2 style='text-align:center;'>{selected_month_name} {year} "
-        f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
-        unsafe_allow_html=True
-    )
-
     totals = {}
-    counts = {}
 
     for b in st.session_state.bets:
         if b["date"].year == year and b["date"].month == month:
-            d = b["date"]
-            totals[d] = totals.get(d, 0) + b["profit"]
-            counts[d] = counts.get(d, 0) + 1
-
-    st.markdown("---")
+            totals[b["date"]] = totals.get(b["date"], 0) + b["profit"]
 
     headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
@@ -201,30 +197,36 @@ with tab_calendar:
         cols = st.columns(7)
         for idx, day in enumerate(week):
             if day == 0:
-                cols[idx].markdown("<div style='height:130px;'></div>", unsafe_allow_html=True)
+                cols[idx].write("")
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
-                cnt = counts.get(d, 0)
+                label = f"{day}\n${round(val,2)}"
 
-                bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
+                if cols[idx].button(label, key=f"cal_{d}"):
+                    st.session_state.selected_date = d
 
-                html = f"""
-                <div style="
-                    background-color:{bg};
-                    color:#000000;
-                    border-radius:12px;
-                    padding:10px;
-                    height:130px;
-                    border:1px solid #cbd5e0;
-                    display:flex;
-                    flex-direction:column;
-                    justify-content:space-between;
-                ">
-                    <div style="font-size:20px;font-weight:700;">{day}</div>
-                    <div style="font-size:15px;">${round(val,2)}</div>
-                    <div style="font-size:12px;color:#333;">{cnt} bets</div>
-                </div>
-                """
+    # Show selected day bets
+    if st.session_state.selected_date:
+        selected = st.session_state.selected_date
+        st.markdown("---")
+        st.subheader(f"Bets for {selected}")
 
-                cols[idx].markdown(html, unsafe_allow_html=True)
+        day_bets = [b for b in st.session_state.bets if b["date"] == selected]
+
+        if len(day_bets) == 0:
+            st.info("No bets this day.")
+        else:
+            daily_profit = sum(b["profit"] for b in day_bets)
+            st.metric("Daily Profit", f"${round(daily_profit,2)}")
+
+            for b in day_bets:
+                color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
+
+                st.markdown(
+                    f"<div style='background-color:{color};padding:12px;border-radius:8px;margin-bottom:8px;'>"
+                    f"{b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['result']} | "
+                    f"<b>${round(b['profit'],2)}</b>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
