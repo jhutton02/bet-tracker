@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date, timedelta
+from datetime import date
 import calendar
 import gspread
 from google.oauth2.service_account import Credentials
@@ -37,39 +37,6 @@ def load_bets():
         bets.append(b)
     return bets
 
-def save_bet(bet):
-    sheet.append_row([
-        str(bet["date"]),
-        bet["sport"],
-        bet["bet_type"],
-        bet["bet_line"],
-        bet["odds"],
-        bet["units"],
-        bet["result"],
-        bet["profit"]
-    ])
-
-def parse_odds(text):
-    try:
-        return float(text.lower().replace("x", "").strip())
-    except:
-        return None
-
-def calc_profit(units, odds, result):
-    if result == "pending":
-        return 0
-    if odds >= 1.01 and odds < 10 and result == "win":
-        return units * (odds - 1)
-    if odds >= 1.01 and odds < 10 and result == "loss":
-        return -units
-    if result == "win" and odds > 0:
-        return units * (odds / 100)
-    if result == "win" and odds < 0:
-        return units * (100 / abs(odds))
-    if result == "loss":
-        return -units
-    return 0
-
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
@@ -92,8 +59,8 @@ with tab_calendar:
 
     month = month_names.index(selected_month_name) + 1
 
-    monthly_total = 0
     totals = {}
+    monthly_total = 0
 
     for b in st.session_state.bets:
         if b["date"].year == year and b["date"].month == month:
@@ -109,7 +76,7 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    # Proper calendar container
+    # Proper black border wrapping calendar
     st.markdown("<div style='border:6px solid black;border-radius:20px;padding:25px;'>", unsafe_allow_html=True)
 
     # Headers
@@ -117,7 +84,7 @@ with tab_calendar:
     for i, h in enumerate(["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]):
         header_cols[i].markdown(f"**{h}**")
 
-    # Days
+    # Calendar grid
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
         for idx, day in enumerate(week):
@@ -137,26 +104,17 @@ with tab_calendar:
 
                 border = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
 
-                # Make entire box the button
-                if cols[idx].button(
-                    f"{day}\n${round(val,2)}",
-                    key=f"day_{d}"
-                ):
+                button_label = f"{day}\n${round(val,2)}"
+
+                if cols[idx].button(button_label, key=f"day_{d}"):
                     st.session_state.selected_date = d
                     st.rerun()
 
-                # Styling for bigger box
                 cols[idx].markdown(
                     f"""
                     <style>
-                    div[data-testid="stButton"][key="day_{d}"] button {{
+                    div[data-testid="stButton"] > button[kind="secondary"] {{
                         height:140px;
-                        background:{bg};
-                        border:{border};
-                        border-radius:12px;
-                        font-weight:600;
-                        font-size:16px;
-                        white-space:pre-line;
                     }}
                     </style>
                     """,
