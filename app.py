@@ -49,21 +49,6 @@ def save_bet(bet):
         bet["profit"]
     ])
 
-def update_bet(row_index, bet):
-    sheet.update(f"A{row_index}:H{row_index}", [[
-        str(bet["date"]),
-        bet["sport"],
-        bet["bet_type"],
-        bet["bet_line"],
-        bet["odds"],
-        bet["units"],
-        bet["result"],
-        bet["profit"]
-    ]])
-
-def delete_bet(row_index):
-    sheet.delete_rows(row_index)
-
 def parse_odds(text):
     try:
         return float(text.lower().replace("x", "").strip())
@@ -124,56 +109,59 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    # RESTORED BLACK BORDER
-    st.markdown("<div style='border:6px solid black;border-radius:20px;padding:20px;'>", unsafe_allow_html=True)
+    # Proper calendar container
+    st.markdown("<div style='border:6px solid black;border-radius:20px;padding:25px;'>", unsafe_allow_html=True)
 
-    headers = st.columns(7)
+    # Headers
+    header_cols = st.columns(7)
     for i, h in enumerate(["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]):
-        headers[i].markdown(f"**{h}**")
+        header_cols[i].markdown(f"**{h}**")
 
+    # Days
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
         for idx, day in enumerate(week):
+
             if day == 0:
                 cols[idx].markdown(" ")
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
 
-                # GREEN / RED COLORING
                 if val > 0:
-                    bg_color = "#c6f6d5"
+                    bg = "#c6f6d5"
                 elif val < 0:
-                    bg_color = "#fed7d7"
+                    bg = "#fed7d7"
                 else:
-                    bg_color = "#edf2f7"
+                    bg = "#edf2f7"
 
-                # Selected day highlight
-                border_style = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
+                border = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
 
-                # Bigger button styling
-                button_html = f"""
-                <div style="
-                    background-color:{bg_color};
-                    border:{border_style};
-                    border-radius:12px;
-                    height:130px;
-                    display:flex;
-                    flex-direction:column;
-                    justify-content:space-between;
-                    padding:10px;
-                    font-weight:600;
-                ">
-                    <div style="font-size:20px;">{day}</div>
-                    <div>${round(val,2)}</div>
-                </div>
-                """
-
-                if cols[idx].button(" ", key=f"day_{d}"):
+                # Make entire box the button
+                if cols[idx].button(
+                    f"{day}\n${round(val,2)}",
+                    key=f"day_{d}"
+                ):
                     st.session_state.selected_date = d
                     st.rerun()
 
-                cols[idx].markdown(button_html, unsafe_allow_html=True)
+                # Styling for bigger box
+                cols[idx].markdown(
+                    f"""
+                    <style>
+                    div[data-testid="stButton"][key="day_{d}"] button {{
+                        height:140px;
+                        background:{bg};
+                        border:{border};
+                        border-radius:12px;
+                        font-weight:600;
+                        font-size:16px;
+                        white-space:pre-line;
+                    }}
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
 
     st.markdown("</div>", unsafe_allow_html=True)
 
