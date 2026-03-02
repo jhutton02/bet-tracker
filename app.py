@@ -76,21 +76,28 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    # Proper black border wrapping calendar
-    st.markdown("<div style='border:6px solid black;border-radius:20px;padding:25px;'>", unsafe_allow_html=True)
+    # FULL HTML CALENDAR
+    calendar_html = """
+    <div style='
+        border:6px solid black;
+        border-radius:20px;
+        padding:25px;
+    '>
+    """
 
     # Headers
-    header_cols = st.columns(7)
-    for i, h in enumerate(["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]):
-        header_cols[i].markdown(f"**{h}**")
+    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:15px;font-weight:700;margin-bottom:10px;'>"
+    for h in ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]:
+        calendar_html += f"<div style='text-align:center;'>{h}</div>"
+    calendar_html += "</div>"
 
-    # Calendar grid
+    # Days grid
+    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:15px;'>"
+
     for week in calendar.monthcalendar(year, month):
-        cols = st.columns(7)
-        for idx, day in enumerate(week):
-
+        for day in week:
             if day == 0:
-                cols[idx].markdown(" ")
+                calendar_html += "<div></div>"
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
@@ -104,27 +111,35 @@ with tab_calendar:
 
                 border = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
 
-                button_label = f"{day}\n${round(val,2)}"
-
-                if cols[idx].button(button_label, key=f"day_{d}"):
-                    st.session_state.selected_date = d
-                    st.rerun()
-
-                cols[idx].markdown(
-                    f"""
-                    <style>
-                    div[data-testid="stButton"] > button[kind="secondary"] {{
+                calendar_html += f"""
+                <a href='?selected={d}' style='text-decoration:none;color:black;'>
+                    <div style='
+                        background:{bg};
+                        border:{border};
+                        border-radius:12px;
                         height:140px;
-                    }}
-                    </style>
-                    """,
-                    unsafe_allow_html=True
-                )
+                        padding:10px;
+                        display:flex;
+                        flex-direction:column;
+                        justify-content:space-between;
+                        font-weight:600;
+                    '>
+                        <div style='font-size:18px;'>{day}</div>
+                        <div>${round(val,2)}</div>
+                    </div>
+                </a>
+                """
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    calendar_html += "</div></div>"
+
+    st.markdown(calendar_html, unsafe_allow_html=True)
+
+    # Handle selection
+    query_params = st.query_params
+    if "selected" in query_params:
+        st.session_state.selected_date = date.fromisoformat(query_params["selected"])
 
     # ================= DAILY DETAILS =================
-
     if st.session_state.selected_date:
         selected = st.session_state.selected_date
         st.markdown("---")
