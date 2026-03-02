@@ -92,7 +92,6 @@ tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
 # ================= TRACKER TAB =================
 with tab_tracker:
-
     st.subheader("Bet Status Summary")
 
     open_count = win_count = loss_count = push_count = 0
@@ -159,7 +158,6 @@ with tab_tracker:
 
 # ================= ADD BET TAB =================
 with tab_add:
-
     st.subheader("Add Bet")
 
     with st.form("add"):
@@ -217,13 +215,14 @@ with tab_calendar:
 
     total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
 
-    st.markdown("<div style='border:6px solid black;border-radius:18px;padding:25px;background-color:white;box-shadow:0 4px 10px rgba(0,0,0,0.15);'>", unsafe_allow_html=True)
-
     st.markdown(
         f"<h2 style='text-align:center;margin-bottom:20px;'>{selected_month_name} {year} "
         f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
         unsafe_allow_html=True
     )
+
+    # 🔥 BLACK BORDER NOW WRAPS THE ACTUAL CALENDAR GRID
+    st.markdown("<div style='border:6px solid black;border-radius:18px;padding:25px;background-color:white;box-shadow:0 4px 10px rgba(0,0,0,0.15);'>", unsafe_allow_html=True)
 
     headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
