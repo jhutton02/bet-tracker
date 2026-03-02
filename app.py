@@ -88,6 +88,9 @@ def calc_profit(units, odds, result):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
+if "selected_date" not in st.session_state:
+    st.session_state.selected_date = None
+
 tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
 # ================= CALENDAR TAB =================
@@ -121,34 +124,57 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    calendar_html = "<div style='border:6px solid black;border-radius:20px;padding:25px;background:white;box-shadow:0 6px 14px rgba(0,0,0,0.15);'>"
+    st.markdown("<div style='border:6px solid black;border-radius:20px;padding:20px;'>", unsafe_allow_html=True)
 
-    # Headers
-    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:10px;font-weight:700;'>"
-    for h in ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]:
-        calendar_html += f"<div style='text-align:center;'>{h}</div>"
-    calendar_html += "</div>"
-
-    # Days
-    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:10px;'>"
+    headers = st.columns(7)
+    for i, h in enumerate(["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]):
+        headers[i].markdown(f"**{h}**")
 
     for week in calendar.monthcalendar(year, month):
-        for day in week:
+        cols = st.columns(7)
+        for idx, day in enumerate(week):
             if day == 0:
-                calendar_html += "<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px;'></div>"
+                cols[idx].markdown(" ")
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
+
                 bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
 
-                calendar_html += (
-                    "<div style='background:" + bg + ";border-radius:10px;padding:8px;height:110px;"
-                    "border:1px solid #cbd5e0;display:flex;flex-direction:column;justify-content:space-between;'>"
-                    "<div style='font-weight:700;font-size:18px;'>" + str(day) + "</div>"
-                    "<div>$" + str(round(val,2)) + "</div>"
-                    "</div>"
+                # Highlight selected day
+                border = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
+
+                if cols[idx].button(
+                    f"{day}\n${round(val,2)}",
+                    key=f"day_{d}"
+                ):
+                    st.session_state.selected_date = d
+                    st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ================= DAILY DETAILS =================
+
+    if st.session_state.selected_date:
+        selected = st.session_state.selected_date
+        st.markdown("---")
+        st.subheader(f"Bets for {selected}")
+
+        day_bets = [b for b in st.session_state.bets if b["date"] == selected]
+
+        if len(day_bets) == 0:
+            st.info("No bets this day.")
+        else:
+            daily_profit = sum(b["profit"] for b in day_bets)
+            daily_units = sum(b["units"] for b in day_bets)
+            wins = len([b for b in day_bets if b["result"] == "win"])
+            losses = len([b for b in day_bets if b["result"] == "loss"])
+
+            st.metric("Daily Profit", f"${round(daily_profit,2)}")
+            st.metric("Units Risked", daily_units)
+            st.metric("Record", f"{wins}-{losses}")
+
+            for b in day_bets:
+                st.markdown(
+                    f"{b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['result']} | ${round(b['profit'],2)}"
                 )
-
-    calendar_html += "</div></div>"
-
-    st.markdown(calendar_html, unsafe_allow_html=True)
