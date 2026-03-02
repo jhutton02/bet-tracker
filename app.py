@@ -49,21 +49,6 @@ def save_bet(bet):
         bet["profit"]
     ])
 
-def update_bet(row_index, bet):
-    sheet.update(f"A{row_index}:H{row_index}", [[
-        str(bet["date"]),
-        bet["sport"],
-        bet["bet_type"],
-        bet["bet_line"],
-        bet["odds"],
-        bet["units"],
-        bet["result"],
-        bet["profit"]
-    ]])
-
-def delete_bet(row_index):
-    sheet.delete_rows(row_index)
-
 def parse_odds(text):
     try:
         return float(text.lower().replace("x", "").strip())
@@ -121,7 +106,7 @@ with tab_tracker:
 
     st.subheader("Bets")
 
-    for i, b in enumerate(st.session_state.bets):
+    for b in st.session_state.bets:
 
         color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
 
@@ -183,7 +168,6 @@ with tab_calendar:
 
     month = month_names.index(selected_month_name) + 1
 
-    # Calculate Monthly Total
     monthly_total = 0
     for b in st.session_state.bets:
         if b["date"].year == year and b["date"].month == month and b["result"] in ["win","loss","push"]:
@@ -206,7 +190,7 @@ with tab_calendar:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    st.markdown("<div style='border:4px solid black;border-radius:16px;padding:15px;'>", unsafe_allow_html=True)
+    st.markdown("---")
 
     headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
@@ -217,10 +201,7 @@ with tab_calendar:
         cols = st.columns(7)
         for idx, day in enumerate(week):
             if day == 0:
-                cols[idx].markdown(
-                    "<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px'></div>",
-                    unsafe_allow_html=True
-                )
+                cols[idx].markdown("<div style='height:130px;'></div>", unsafe_allow_html=True)
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
@@ -232,20 +213,18 @@ with tab_calendar:
                 <div style="
                     background-color:{bg};
                     color:#000000;
-                    border-radius:10px;
-                    padding:8px;
-                    height:110px;
+                    border-radius:12px;
+                    padding:10px;
+                    height:130px;
                     border:1px solid #cbd5e0;
                     display:flex;
                     flex-direction:column;
                     justify-content:space-between;
                 ">
-                    <div style="font-size:18px;font-weight:700;">{day}</div>
-                    <div style="font-size:14px;">${round(val,2)}</div>
+                    <div style="font-size:20px;font-weight:700;">{day}</div>
+                    <div style="font-size:15px;">${round(val,2)}</div>
                     <div style="font-size:12px;color:#333;">{cnt} bets</div>
                 </div>
                 """
 
                 cols[idx].markdown(html, unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
