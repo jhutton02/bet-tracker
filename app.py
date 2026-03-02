@@ -121,16 +121,7 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    # TRUE CALENDAR CONTAINER
-    calendar_html = """
-    <div style='
-        border:6px solid black;
-        border-radius:20px;
-        padding:25px;
-        background:white;
-        box-shadow:0 6px 14px rgba(0,0,0,0.15);
-    '>
-    """
+    calendar_html = "<div style='border:6px solid black;border-radius:20px;padding:25px;background:white;box-shadow:0 6px 14px rgba(0,0,0,0.15);'>"
 
     # Headers
     calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:10px;font-weight:700;'>"
@@ -150,21 +141,13 @@ with tab_calendar:
                 val = totals.get(d, 0)
                 bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
 
-                calendar_html += f"""
-                <div style='
-                    background:{bg};
-                    border-radius:10px;
-                    padding:8px;
-                    height:110px;
-                    border:1px solid #cbd5e0;
-                    display:flex;
-                    flex-direction:column;
-                    justify-content:space-between;
-                '>
-                    <div style='font-weight:700;font-size:18px;'>{day}</div>
-                    <div>${round(val,2)}</div>
-                </div>
-                """
+                calendar_html += (
+                    "<div style='background:" + bg + ";border-radius:10px;padding:8px;height:110px;"
+                    "border:1px solid #cbd5e0;display:flex;flex-direction:column;justify-content:space-between;'>"
+                    "<div style='font-weight:700;font-size:18px;'>" + str(day) + "</div>"
+                    "<div>$" + str(round(val,2)) + "</div>"
+                    "</div>"
+                )
 
     calendar_html += "</div></div>"
 
