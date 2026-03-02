@@ -76,70 +76,57 @@ with tab_calendar:
         unsafe_allow_html=True
     )
 
-    # FULL HTML CALENDAR
-    calendar_html = """
-    <div style='
-        border:6px solid black;
-        border-radius:20px;
-        padding:25px;
-    '>
-    """
+    # Black border around calendar
+    with st.container():
+        st.markdown(
+            "<div style='border:6px solid black;border-radius:20px;padding:20px;'>",
+            unsafe_allow_html=True
+        )
 
-    # Headers
-    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:15px;font-weight:700;margin-bottom:10px;'>"
-    for h in ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]:
-        calendar_html += f"<div style='text-align:center;'>{h}</div>"
-    calendar_html += "</div>"
+        headers = st.columns(7)
+        for i, h in enumerate(["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]):
+            headers[i].markdown(f"**{h}**")
 
-    # Days grid
-    calendar_html += "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:15px;'>"
-
-    for week in calendar.monthcalendar(year, month):
-        for day in week:
-            if day == 0:
-                calendar_html += "<div></div>"
-            else:
-                d = date(year, month, day)
-                val = totals.get(d, 0)
-
-                if val > 0:
-                    bg = "#c6f6d5"
-                elif val < 0:
-                    bg = "#fed7d7"
+        for week in calendar.monthcalendar(year, month):
+            cols = st.columns(7)
+            for idx, day in enumerate(week):
+                if day == 0:
+                    cols[idx].write("")
                 else:
-                    bg = "#edf2f7"
+                    d = date(year, month, day)
+                    val = totals.get(d, 0)
 
-                border = "4px solid blue" if st.session_state.selected_date == d else "1px solid #cbd5e0"
+                    if val > 0:
+                        bg = "#c6f6d5"
+                    elif val < 0:
+                        bg = "#fed7d7"
+                    else:
+                        bg = "#edf2f7"
 
-                calendar_html += f"""
-                <a href='?selected={d}' style='text-decoration:none;color:black;'>
-                    <div style='
-                        background:{bg};
-                        border:{border};
-                        border-radius:12px;
-                        height:140px;
-                        padding:10px;
-                        display:flex;
-                        flex-direction:column;
-                        justify-content:space-between;
-                        font-weight:600;
-                    '>
-                        <div style='font-size:18px;'>{day}</div>
-                        <div>${round(val,2)}</div>
-                    </div>
-                </a>
-                """
+                    selected = st.session_state.selected_date == d
+                    border = "3px solid blue" if selected else "1px solid #cbd5e0"
 
-    calendar_html += "</div></div>"
+                    label = f"{day}\n${round(val,2)}"
 
-    st.markdown(calendar_html, unsafe_allow_html=True)
+                    if cols[idx].button(label, key=str(d)):
+                        st.session_state.selected_date = d
+                        st.rerun()
 
-    # Handle selection
-    query_params = st.query_params
-    if "selected" in query_params:
-        st.session_state.selected_date = date.fromisoformat(query_params["selected"])
+                    cols[idx].markdown(
+                        f"""
+                        <style>
+                        button[kind="secondary"] {{
+                            height:140px;
+                        }}
+                        </style>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # ================= DAILY DETAILS =================
+
     if st.session_state.selected_date:
         selected = st.session_state.selected_date
         st.markdown("---")
@@ -161,5 +148,6 @@ with tab_calendar:
 
             for b in day_bets:
                 st.markdown(
-                    f"{b['sport']} | {b['bet_type']} | {b['bet_line']} | {b['result']} | ${round(b['profit'],2)}"
+                    f"{b['sport']} | {b['bet_type']} | {b['bet_line']} | "
+                    f"{b['result']} | ${round(b['profit'],2)}"
                 )
