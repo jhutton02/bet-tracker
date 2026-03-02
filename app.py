@@ -217,7 +217,7 @@ with tab_calendar:
 
     total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
 
-    st.markdown("<div style='border:4px solid black;border-radius:16px;padding:20px;'>", unsafe_allow_html=True)
+    st.markdown("<div style='border:6px solid black;border-radius:18px;padding:25px;background-color:white;box-shadow:0 4px 10px rgba(0,0,0,0.15);'>", unsafe_allow_html=True)
 
     st.markdown(
         f"<h2 style='text-align:center;margin-bottom:20px;'>{selected_month_name} {year} "
