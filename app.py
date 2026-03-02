@@ -92,7 +92,6 @@ tab_tracker, tab_add, tab_calendar = st.tabs(["Tracker", "Add Bet", "Calendar"])
 
 # ================= TRACKER TAB =================
 with tab_tracker:
-
     st.subheader("Bet Status Summary")
 
     open_count = win_count = loss_count = push_count = 0
@@ -119,26 +118,9 @@ with tab_tracker:
 
     st.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
 
-    st.subheader("Bets")
-
-    for i, b in enumerate(st.session_state.bets):
-
-        color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
-
-        st.markdown(
-            f"<div style='background-color:{color};padding:14px;border-radius:10px;color:#000000;margin-bottom:10px;'>"
-            f"{b['date']} | {b['sport']} | {b['bet_type']}<br>"
-            f"{b['bet_line']} | {b['odds']} | {b['result']}<br>"
-            f"<b>${round(b['profit'],2)}</b>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
 # ================= ADD BET TAB =================
 with tab_add:
-
     st.subheader("Add Bet")
-
     with st.form("add"):
         bet_date = st.date_input("Date", date.today())
         sport = st.selectbox("Sport", ["NBA","NHL","NFL","MLB","Other"])
@@ -183,7 +165,6 @@ with tab_calendar:
 
     month = month_names.index(selected_month_name) + 1
 
-    # Calculate Monthly Total
     monthly_total = 0
     for b in st.session_state.bets:
         if b["date"].year == year and b["date"].month == month and b["result"] in ["win","loss","push"]:
@@ -191,22 +172,14 @@ with tab_calendar:
 
     total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
 
+    # OUTER BOX AROUND EVERYTHING
+    st.markdown("<div style='border:4px solid black;border-radius:16px;padding:20px;'>", unsafe_allow_html=True)
+
     st.markdown(
-        f"<h2 style='text-align:center;'>{selected_month_name} {year} "
+        f"<h2 style='text-align:center;margin-bottom:20px;'>{selected_month_name} {year} "
         f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
         unsafe_allow_html=True
     )
-
-    totals = {}
-    counts = {}
-
-    for b in st.session_state.bets:
-        if b["date"].year == year and b["date"].month == month:
-            d = b["date"]
-            totals[d] = totals.get(d, 0) + b["profit"]
-            counts[d] = counts.get(d, 0) + 1
-
-    st.markdown("<div style='border:4px solid black;border-radius:16px;padding:15px;'>", unsafe_allow_html=True)
 
     headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
@@ -223,8 +196,10 @@ with tab_calendar:
                 )
             else:
                 d = date(year, month, day)
-                val = totals.get(d, 0)
-                cnt = counts.get(d, 0)
+                val = 0
+                for b in st.session_state.bets:
+                    if b["date"] == d:
+                        val += b["profit"]
 
                 bg = "#c6f6d5" if val > 0 else "#fed7d7" if val < 0 else "#edf2f7"
 
@@ -242,7 +217,6 @@ with tab_calendar:
                 ">
                     <div style="font-size:18px;font-weight:700;">{day}</div>
                     <div style="font-size:14px;">${round(val,2)}</div>
-                    <div style="font-size:12px;color:#333;">{cnt} bets</div>
                 </div>
                 """
 
