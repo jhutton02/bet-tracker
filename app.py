@@ -69,7 +69,7 @@ def calc_profit(units, odds, result):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
-# ================= TABS (REORDERED) =================
+# ================= TABS =================
 t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
 # ================= CALENDAR =================
@@ -122,14 +122,15 @@ with t1:
             cols[i].markdown(f"""
             <div style="
                 background:{bg};
-                padding:10px;
-                border-radius:12px;
-                height:95px;
-                border:1px solid #cbd5f5;
+                padding:12px;
+                border-radius:14px;
+                height:100px;
+                border:1px solid rgba(0,0,0,0.08);
+                box-shadow:0 2px 4px rgba(0,0,0,0.05);
             ">
-                <b>{day}</b><br>
+                <b style="font-size:16px">{day}</b><br>
                 ${round(val,2)}<br>
-                {cnt} bets
+                <span style="font-size:12px;opacity:0.7">{cnt} bets</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -143,7 +144,7 @@ with t1:
             color_box = "#d1fae5" if b["profit"] > 0 else "#fee2e2"
 
             st.markdown(f"""
-            <div style='background:{color_box};padding:12px;border-radius:10px;margin-bottom:8px'>
+            <div style='background:{color_box};padding:14px;border-radius:12px;margin-bottom:10px;box-shadow:0 2px 4px rgba(0,0,0,0.05)'>
             {b['sport']} | {b['bet_line']} | {b['result']}<br>
             <b>${round(b['profit'],2)}</b>
             </div>
@@ -192,11 +193,26 @@ with t3:
     def color(val):
         return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
 
-    c1, c2, c3 = st.columns(3)
+    def stat_card(label, value):
+        return f"""
+        <div style="
+            padding:20px;
+            border-radius:14px;
+            background:#f8fafc;
+            text-align:center;
+            box-shadow:0 2px 4px rgba(0,0,0,0.05);
+        ">
+            <div style="font-size:14px;opacity:0.6">{label}</div>
+            <div style="font-size:22px;font-weight:700;color:{color(value)}">
+                ${round(value,2)}
+            </div>
+        </div>
+        """
 
-    c1.markdown(f"<h3 style='color:{color(daily)}'>Day: ${round(daily,2)}</h3>", unsafe_allow_html=True)
-    c2.markdown(f"<h3 style='color:{color(weekly)}'>Week: ${round(weekly,2)}</h3>", unsafe_allow_html=True)
-    c3.markdown(f"<h3 style='color:{color(monthly)}'>Month: ${round(monthly,2)}</h3>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(stat_card("Day", daily), unsafe_allow_html=True)
+    c2.markdown(stat_card("Week", weekly), unsafe_allow_html=True)
+    c3.markdown(stat_card("Month", monthly), unsafe_allow_html=True)
 
     st.divider()
 
@@ -208,7 +224,7 @@ with t3:
 
         with cols[0]:
             st.markdown(f"""
-            <div style='background:{color_box};padding:12px;border-radius:10px'>
+            <div style='background:{color_box};padding:14px;border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.05)'>
             <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
             {b['bet_line']} | {b['result']}<br>
             <b>${round(b['profit'],2)}</b>
