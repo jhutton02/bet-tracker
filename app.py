@@ -71,7 +71,7 @@ if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
 # ================= TABS =================
-t1, t2 = st.tabs(["📋 Tracker", "➕ Add Bet"])
+t1, t2, t3 = st.tabs(["📋 Tracker", "➕ Add Bet", "📅 Calendar"])
 
 # ================= TRACKER =================
 with t1:
@@ -192,3 +192,64 @@ with t2:
             save_bet(bet)
             st.session_state.bets = load_bets()
             st.success("Bet added")
+
+# ================= CALENDAR =================
+with t3:
+
+    today = date.today()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
+    with col2:
+        month_names = list(calendar.month_name)[1:]
+        selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
+
+    month = month_names.index(selected_month_name) + 1
+
+    monthly_total = sum(
+        b["profit"] for b in st.session_state.bets
+        if b["date"].year == year and b["date"].month == month and b["result"] != "pending"
+    )
+
+    total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
+
+    st.markdown(
+        f"<h2 style='text-align:center;'>{selected_month_name} {year} "
+        f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
+        unsafe_allow_html=True
+    )
+
+    totals = {}
+    counts = {}
+
+    for b in st.session_state.bets:
+        if b["date"].year == year and b["date"].month == month:
+            d = b["date"]
+            totals[d] = totals.get(d, 0) + b["profit"]
+            counts[d] = counts.get(d, 0) + 1
+
+    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+    cols = st.columns(7)
+    for i in range(7):
+        cols[i].markdown("**" + headers[i] + "**")
+
+    for week in calendar.monthcalendar(year, month):
+        cols = st.columns(7)
+        for idx, day in enumerate(week):
+            if day == 0:
+                cols[idx].markdown("")
+            else:
+                d = date(year, month, day)
+                val = totals.get(d, 0)
+                cnt = counts.get(d, 0)
+
+                bg = "#d1fae5" if val > 0 else "#fee2e2" if val < 0 else "#f1f5f9"
+
+                cols[idx].markdown(f"""
+                <div style='background:{bg};padding:8px;border-radius:10px'>
+                <b>{day}</b><br>
+                ${round(val,2)}<br>
+                {cnt} bets
+                </div>
+                """, unsafe_allow_html=True)
