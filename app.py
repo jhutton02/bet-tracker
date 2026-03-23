@@ -23,20 +23,47 @@ def safe_parse_odds(val):
     except:
         return 0.0
 
+# ✅ FIXED PROFIT FUNCTION
+def calc_profit(units, odds, result):
+    result = str(result).lower().strip()
+
+    if result == "pending":
+        return 0
+
+    if odds >= 1:
+        return units * (odds - 1) if result == "win" else -units
+
+    if odds > 0:
+        return units * (odds / 100) if result == "win" else -units
+
+    if odds < 0:
+        return units * (100 / abs(odds)) if result == "win" else -units
+
+    return 0
+
+# ✅ FIX: RECALCULATE PROFIT ON LOAD
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
     for i, r in enumerate(rows, start=2):
+
+        odds = safe_parse_odds(r["odds"])
+        units = float(r["units"])
+        result = str(r["result"]).lower().strip()
+
+        # 🔥 ALWAYS RECALCULATE
+        profit = calc_profit(units, odds, result) * UNIT_SIZE
+
         bets.append({
             "row": i,
             "date": date.fromisoformat(str(r["date"])),
             "sport": r["sport"],
             "bet_type": r["bet_type"],
             "bet_line": r["bet_line"],
-            "odds": safe_parse_odds(r["odds"]),
-            "units": float(r["units"]),
-            "result": r["result"],
-            "profit": float(r["profit"])
+            "odds": odds,
+            "units": units,
+            "result": result,
+            "profit": profit
         })
     return bets
 
@@ -54,24 +81,6 @@ def update_bet(row, bet):
 
 def delete_bet(row):
     sheet.delete_rows(row)
-
-# ✅ FIXED PROFIT FUNCTION
-def calc_profit(units, odds, result):
-    if result == "pending":
-        return 0
-
-    # decimal odds (main case)
-    if odds >= 1:
-        return units * (odds - 1) if result == "win" else -units
-
-    # american odds fallback
-    if odds > 0:
-        return units * (odds / 100) if result == "win" else -units
-
-    if odds < 0:
-        return units * (100 / abs(odds)) if result == "win" else -units
-
-    return 0
 
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
@@ -145,22 +154,6 @@ with t1:
             </div>
             """, unsafe_allow_html=True)
 
-    if selected_day:
-        st.divider()
-        st.subheader(f"Bets on {selected_day.strftime('%-m/%-d/%y')}")
-
-        day_bets = [b for b in st.session_state.bets if b["date"] == selected_day]
-
-        for b in day_bets:
-            color_box = "#d1fae5" if b["profit"] > 0 else "#fee2e2"
-
-            st.markdown(f"""
-            <div style='background:{color_box};padding:14px;border-radius:12px;margin-bottom:10px;box-shadow:0 2px 4px rgba(0,0,0,0.05)'>
-            {b['sport']} | {b['bet_line']} | {b['result']}<br>
-            <b>${round(b['profit'],2)}</b>
-            </div>
-            """, unsafe_allow_html=True)
-
 # ================= ADD BET =================
 with t2:
     with st.form("add"):
@@ -204,71 +197,7 @@ with t3:
     def color(val):
         return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
 
-    def stat_card(label, value):
-        return f"""
-        <div style="
-            padding:20px;
-            border-radius:14px;
-            background:#f8fafc;
-            text-align:center;
-            box-shadow:0 2px 4px rgba(0,0,0,0.05);
-        ">
-            <div style="font-size:14px;opacity:0.6">{label}</div>
-            <div style="font-size:22px;font-weight:700;color:{color(value)}">
-                ${round(value,2)}
-            </div>
-        </div>
-        """
-
     c1, c2, c3 = st.columns(3)
-    c1.markdown(stat_card("Day", daily), unsafe_allow_html=True)
-    c2.markdown(stat_card("Week", weekly), unsafe_allow_html=True)
-    c3.markdown(stat_card("Month", monthly), unsafe_allow_html=True)
-
-    st.divider()
-
-    for b in sorted(bets, key=lambda x: x["date"], reverse=True):
-
-        color_box = "#d1fae5" if b["profit"] > 0 else "#fee2e2" if b["profit"] < 0 else "#f1f5f9"
-
-        cols = st.columns([6,1,1])
-
-        with cols[0]:
-            st.markdown(f"""
-            <div style='background:{color_box};padding:14px;border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.05)'>
-            <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
-            {b['bet_line']} | {b['result']}<br>
-            <b>${round(b['profit'],2)}</b>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with cols[1]:
-            if st.button("✏️", key=f"edit_{b['row']}"):
-                st.session_state.editing = b
-
-        with cols[2]:
-            if st.button("❌", key=f"del_{b['row']}"):
-                delete_bet(b["row"])
-                st.session_state.bets = load_bets()
-                st.rerun()
-
-    if "editing" in st.session_state:
-        b = st.session_state.editing
-        st.subheader("Edit Bet")
-
-        with st.form("edit_form"):
-            new_units = st.number_input("Units", value=b["units"])
-            new_result = st.selectbox("Result", ["pending","win","loss","push"],
-                                      index=["pending","win","loss","push"].index(b["result"]))
-
-            if st.form_submit_button("Save"):
-                new_profit = calc_profit(new_units, b["odds"], new_result) * UNIT_SIZE
-
-                b["units"] = new_units
-                b["result"] = new_result
-                b["profit"] = new_profit
-
-                update_bet(b["row"], b)
-                st.session_state.bets = load_bets()
-                del st.session_state.editing
-                st.rerun()
+    c1.markdown(f"<h3 style='color:{color(daily)}'>Day: ${round(daily,2)}</h3>", unsafe_allow_html=True)
+    c2.markdown(f"<h3 style='color:{color(weekly)}'>Week: ${round(weekly,2)}</h3>", unsafe_allow_html=True)
+    c3.markdown(f"<h3 style='color:{color(monthly)}'>Month: ${round(monthly,2)}</h3>", unsafe_allow_html=True)
