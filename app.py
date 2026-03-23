@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date
+from datetime import date, timedelta
 import calendar
 import gspread
 from google.oauth2.service_account import Credentials
@@ -30,7 +30,7 @@ def load_bets():
         b["sport"] = r["sport"]
         b["bet_type"] = r["bet_type"]
         b["bet_line"] = r["bet_line"]
-        b["odds"] = float(r["odds"])
+        b["odds"] = r["odds"]
         b["units"] = float(r["units"])
         b["result"] = r["result"]
         b["profit"] = float(r["profit"])
@@ -66,7 +66,7 @@ def delete_bet(row_index):
 
 def parse_odds(text):
     try:
-        return float(text)
+        return float(text.lower().replace("x", "").strip())
     except:
         return None
 
@@ -95,46 +95,19 @@ with tab_tracker:
 
     st.subheader("Bet Status Summary")
 
-    # SORT newest first
-    st.session_state.bets = sorted(
-        st.session_state.bets,
-        key=lambda x: x["date"],
-        reverse=True
-    )
-
-    # VIEW FILTER
-    view = st.radio("View", ["All", "Open", "Closed"], horizontal=True)
-
-    bets_to_show = []
-    for b in st.session_state.bets:
-        if view == "Open" and b["result"] != "pending":
-            continue
-        if view == "Closed" and b["result"] == "pending":
-            continue
-        bets_to_show.append(b)
-
-    # SUMMARY
     open_count = win_count = loss_count = push_count = 0
     open_exposure = 0
-    total_profit = 0
-    total_units = 0
 
     for b in st.session_state.bets:
         if b["result"] == "pending":
             open_count += 1
             open_exposure += b["units"] * UNIT_SIZE
-        elif b["result"] == "win":
+        if b["result"] == "win":
             win_count += 1
-            total_profit += b["profit"]
-            total_units += b["units"]
-        elif b["result"] == "loss":
+        if b["result"] == "loss":
             loss_count += 1
-            total_profit += b["profit"]
-            total_units += b["units"]
-        elif b["result"] == "push":
+        if b["result"] == "push":
             push_count += 1
-
-    roi = (total_profit / (total_units * UNIT_SIZE)) * 100 if total_units else 0
 
     c1, c2 = st.columns(2)
     c3, c4 = st.columns(2)
@@ -146,50 +119,20 @@ with tab_tracker:
 
     st.metric("Open Exposure ($)", "$" + str(round(open_exposure, 2)))
 
-    c5, c6 = st.columns(2)
-    c5.metric("Total Profit", f"${round(total_profit,2)}")
-    c6.metric("ROI %", f"{round(roi,2)}%")
-
     st.subheader("Bets")
 
-    # DISPLAY BETS
-    for i, b in enumerate(bets_to_show):
+    for i, b in enumerate(st.session_state.bets):
 
         color = "#c6f6d5" if b["profit"] > 0 else "#fed7d7" if b["profit"] < 0 else "#edf2f7"
 
         st.markdown(
-            f"<div style='background-color:{color};padding:14px;border-radius:10px;color:#000000;margin-bottom:5px;'>"
+            f"<div style='background-color:{color};padding:14px;border-radius:10px;color:#000000;margin-bottom:10px;'>"
             f"{b['date']} | {b['sport']} | {b['bet_type']}<br>"
             f"{b['bet_line']} | {b['odds']} | {b['result']}<br>"
             f"<b>${round(b['profit'],2)}</b>"
             f"</div>",
             unsafe_allow_html=True
         )
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        original_index = st.session_state.bets.index(b)
-
-        if col1.button("Win", key=f"win_{i}"):
-            b["result"] = "win"
-
-        if col2.button("Loss", key=f"loss_{i}"):
-            b["result"] = "loss"
-
-        if col3.button("Push", key=f"push_{i}"):
-            b["result"] = "push"
-
-        if col4.button("Delete", key=f"del_{i}"):
-            delete_bet(original_index + 2)
-            st.session_state.bets = load_bets()
-            st.rerun()
-
-        if b["result"] != "pending":
-            odds_val = b["odds"]
-            b["profit"] = calc_profit(b["units"], odds_val, b["result"]) * UNIT_SIZE
-            update_bet(original_index + 2, b)
-            st.session_state.bets = load_bets()
-            st.rerun()
 
 # ================= ADD BET TAB =================
 with tab_add:
@@ -200,29 +143,31 @@ with tab_add:
         bet_date = st.date_input("Date", date.today())
         sport = st.selectbox("Sport", ["NBA","NHL","NFL","MLB","Other"])
         bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
-        bet_line = st.text_input("Bet Line")
-        odds = st.number_input("Odds", step=0.01)
+        bet_line = st.text_input("Bet Line (e.g. Mavericks ML)")
+        odds_text = st.text_input("Odds")
         units = st.number_input("Units", min_value=0.5, step=0.5)
         result = st.selectbox("Result", ["pending","win","loss","push"])
         submitted = st.form_submit_button("Add Bet")
 
         if submitted:
-            profit = calc_profit(units, odds, result) * UNIT_SIZE
-
-            bet = {
-                "date": bet_date,
-                "sport": sport,
-                "bet_type": bet_type,
-                "bet_line": bet_line,
-                "odds": odds,
-                "units": units,
-                "result": result,
-                "profit": profit
-            }
-
-            save_bet(bet)
-            st.session_state.bets = load_bets()
-            st.success("Bet added")
+            odds = parse_odds(odds_text)
+            if odds is None:
+                st.error("Invalid odds")
+            else:
+                profit = calc_profit(units, odds, result) * UNIT_SIZE
+                bet = {
+                    "date": bet_date,
+                    "sport": sport,
+                    "bet_type": bet_type,
+                    "bet_line": bet_line,
+                    "odds": odds_text,
+                    "units": units,
+                    "result": result,
+                    "profit": profit
+                }
+                save_bet(bet)
+                st.session_state.bets = load_bets()
+                st.success("Bet added")
 
 # ================= CALENDAR TAB =================
 with tab_calendar:
@@ -238,6 +183,7 @@ with tab_calendar:
 
     month = month_names.index(selected_month_name) + 1
 
+    # Calculate Monthly Total
     monthly_total = 0
     for b in st.session_state.bets:
         if b["date"].year == year and b["date"].month == month and b["result"] in ["win","loss","push"]:
@@ -271,7 +217,10 @@ with tab_calendar:
         cols = st.columns(7)
         for idx, day in enumerate(week):
             if day == 0:
-                cols[idx].markdown("<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px'></div>", unsafe_allow_html=True)
+                cols[idx].markdown(
+                    "<div style='height:110px;border:1px solid #e2e8f0;border-radius:10px'></div>",
+                    unsafe_allow_html=True
+                )
             else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
