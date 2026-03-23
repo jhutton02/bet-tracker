@@ -95,10 +95,15 @@ with t1:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    selected_day = st.selectbox(
-        "Select a day",
-        sorted(totals.keys()) if totals else []
-    )
+    # ✅ FORMATTED DATE DROPDOWN
+    date_options = sorted(totals.keys()) if totals else []
+    formatted_dates = [d.strftime("%-m/%-d/%y") for d in date_options]
+
+    selected_label = st.selectbox("Select a day", formatted_dates)
+
+    selected_day = None
+    if selected_label:
+        selected_day = date_options[formatted_dates.index(selected_label)]
 
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
@@ -136,7 +141,7 @@ with t1:
 
     if selected_day:
         st.divider()
-        st.subheader(f"Bets on {selected_day}")
+        st.subheader(f"Bets on {selected_day.strftime('%-m/%-d/%y')}")
 
         day_bets = [b for b in st.session_state.bets if b["date"] == selected_day]
 
