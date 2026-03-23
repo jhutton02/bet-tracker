@@ -201,58 +201,79 @@ with t3:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-   for week in calendar.monthcalendar(year, month):
-    cols = st.columns(7)
+    # ===== CALENDAR GRID =====
+    for week in calendar.monthcalendar(year, month):
+        cols = st.columns(7)
 
-    for i, day in enumerate(week):
-        if day == 0:
-            cols[i].markdown("")
-            continue
+        for i, day in enumerate(week):
 
-        d = date(year, month, day)
-        val = totals.get(d, 0)
-        cnt = counts.get(d, 0)
+            if day == 0:
+                cols[i].markdown("")
+                continue
 
-        # 🎨 COLOR LOGIC
-        if val > 0:
-            bg = "#d1fae5"
-            text_color = "#065f46"
-        elif val < 0:
-            bg = "#fee2e2"
-            text_color = "#7f1d1d"
-        else:
-            bg = "#f1f5f9"
-            text_color = "#334155"
+            d = date(year, month, day)
+            val = totals.get(d, 0)
+            cnt = counts.get(d, 0)
 
-        # 👆 CLICKABLE BUTTON (clean layout)
-        if cols[i].button("", key=f"day_{d}"):
-            st.session_state.selected_day = d
+            # 🎨 COLORS
+            if val > 0:
+                bg = "#d1fae5"
+                text_color = "#065f46"
+            elif val < 0:
+                bg = "#fee2e2"
+                text_color = "#7f1d1d"
+            else:
+                bg = "#f1f5f9"
+                text_color = "#334155"
 
-        # 🎯 CLEAN CARD UI
-        cols[i].markdown(f"""
-        <div style="
-            background:{bg};
-            color:{text_color};
-            padding:10px;
-            border-radius:12px;
-            height:95px;
-            margin-top:-70px;
-            display:flex;
-            flex-direction:column;
-            justify-content:space-between;
-            font-size:14px;
-        ">
-            <div style="font-weight:700;font-size:16px;">
-                {day}
+            # 👆 CLICK
+            if cols[i].button("", key=f"day_{d}"):
+                st.session_state.selected_day = d
+
+            # 🎯 CARD UI
+            cols[i].markdown(f"""
+            <div style="
+                background:{bg};
+                color:{text_color};
+                padding:10px;
+                border-radius:12px;
+                height:95px;
+                margin-top:-70px;
+                display:flex;
+                flex-direction:column;
+                justify-content:space-between;
+                font-size:14px;
+            ">
+                <div style="font-weight:700;font-size:16px;">
+                    {day}
+                </div>
+
+                <div>
+                    ${round(val,2)}
+                </div>
+
+                <div style="font-size:12px;opacity:0.8;">
+                    {cnt} bet{"s" if cnt != 1 else ""}
+                </div>
             </div>
+            """, unsafe_allow_html=True)
 
-            <div>
-                ${round(val,2)}
-            </div>
+    # ===== DAY DETAILS =====
+    if st.session_state.selected_day:
+        st.divider()
+        st.subheader(f"Bets on {st.session_state.selected_day}")
 
-            <div style="font-size:12px;opacity:0.8;">
-                {cnt} bet{"s" if cnt != 1 else ""}
+        day_bets = [
+            b for b in st.session_state.bets
+            if b["date"] == st.session_state.selected_day
+        ]
+
+        for b in day_bets:
+            color_box = "#d1fae5" if b["profit"] > 0 else "#fee2e2"
+
+            st.markdown(f"""
+            <div style='background:{color_box};padding:12px;border-radius:10px;margin-bottom:8px'>
+            {b['sport']} | {b['bet_line']} | {b['result']}<br>
+            <b>${round(b['profit'],2)}</b>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
+            """, unsafe_allow_html=True)
