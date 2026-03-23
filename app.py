@@ -55,15 +55,22 @@ def update_bet(row, bet):
 def delete_bet(row):
     sheet.delete_rows(row)
 
+# ✅ FIXED PROFIT FUNCTION
 def calc_profit(units, odds, result):
     if result == "pending":
         return 0
-    if odds >= 1.01 and odds < 10:
+
+    # decimal odds (main case)
+    if odds >= 1:
         return units * (odds - 1) if result == "win" else -units
+
+    # american odds fallback
     if odds > 0:
         return units * (odds / 100) if result == "win" else -units
+
     if odds < 0:
         return units * (100 / abs(odds)) if result == "win" else -units
+
     return 0
 
 if "bets" not in st.session_state:
@@ -95,7 +102,6 @@ with t1:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    # ✅ FORMATTED DATE DROPDOWN
     date_options = sorted(totals.keys()) if totals else []
     formatted_dates = [d.strftime("%-m/%-d/%y") for d in date_options]
 
