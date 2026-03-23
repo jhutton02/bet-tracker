@@ -69,7 +69,6 @@ def calc_profit(units, odds, result):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
-# store selected day
 if "selected_day" not in st.session_state:
     st.session_state.selected_day = None
 
@@ -78,9 +77,11 @@ t1, t2, t3 = st.tabs(["📋 Tracker", "➕ Add Bet", "📅 Calendar"])
 
 # ================= TRACKER =================
 with t1:
+
     view = st.radio("View", ["All", "Open", "Closed"], horizontal=True)
 
     bets = st.session_state.bets
+
     if view == "Open":
         bets = [b for b in bets if b["result"] == "pending"]
     elif view == "Closed":
@@ -181,7 +182,13 @@ with t3:
         if b["date"].year == year and b["date"].month == month and b["result"] != "pending"
     )
 
-    st.markdown(f"## {selected_month_name} {year} (${round(monthly_total,2)})")
+    total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
+
+    st.markdown(
+        f"<h2 style='text-align:center;'>{selected_month_name} {year} "
+        f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
+        unsafe_allow_html=True
+    )
 
     totals = {}
     counts = {}
@@ -192,20 +199,45 @@ with t3:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
+    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+    cols = st.columns(7)
+    for i in range(7):
+        cols[i].markdown("**" + headers[i] + "**")
+
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
         for idx, day in enumerate(week):
-            if day != 0:
+
+            if day == 0:
+                cols[idx].markdown("")
+            else:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
                 cnt = counts.get(d, 0)
 
-                label = f"{day}\n${round(val,2)}\n{cnt} bets"
+                bg = "#d1fae5" if val > 0 else "#fee2e2" if val < 0 else "#f1f5f9"
 
-                if cols[idx].button(label, key=f"day_{d}"):
+                if cols[idx].button(" ", key=f"day_{d}"):
                     st.session_state.selected_day = d
 
-    # ================= SHOW DAY DETAILS =================
+                cols[idx].markdown(f"""
+                <div style="
+                    background:{bg};
+                    padding:10px;
+                    border-radius:10px;
+                    height:100px;
+                    margin-top:-90px;
+                    display:flex;
+                    flex-direction:column;
+                    justify-content:space-between;
+                ">
+                    <div><b>{day}</b></div>
+                    <div>${round(val,2)}</div>
+                    <div style="font-size:12px;">{cnt} bets</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # SHOW DAY DETAILS
     if st.session_state.selected_day:
         st.divider()
         st.subheader(f"Bets on {st.session_state.selected_day}")
@@ -219,4 +251,11 @@ with t3:
             st.write("No bets")
         else:
             for b in day_bets:
-                st.write(f"{b['sport']} | {b['bet_line']} | {b['result']} | ${round(b['profit'],2)}")
+                color = "#d1fae5" if b["profit"] > 0 else "#fee2e2" if b["profit"] < 0 else "#f1f5f9"
+
+                st.markdown(f"""
+                <div style='background:{color};padding:10px;border-radius:10px;margin-bottom:8px'>
+                {b['sport']} | {b['bet_line']} | {b['result']}<br>
+                <b>${round(b['profit'],2)}</b>
+                </div>
+                """, unsafe_allow_html=True)
