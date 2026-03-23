@@ -80,22 +80,32 @@ with t1:
     today = date.today()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
-    year_start = today.replace(month=1, day=1)
 
-    def total(start):
-        return sum(b["profit"] for b in bets if b["date"] >= start)
-
-    weekly = total(week_start)
-    monthly = total(month_start)
-    yearly = total(year_start)
+    # ✅ NEW TOTALS
+    daily = sum(b["profit"] for b in bets if b["date"] == today)
+    weekly = sum(b["profit"] for b in bets if b["date"] >= week_start)
+    monthly = sum(b["profit"] for b in bets if b["date"] >= month_start)
 
     def color(val):
         return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
 
+    # ✅ ORDER FIXED
     c1, c2, c3 = st.columns(3)
-    c1.markdown(f"<h3 style='color:{color(weekly)}'>Week: ${round(weekly,2)}</h3>", unsafe_allow_html=True)
-    c2.markdown(f"<h3 style='color:{color(monthly)}'>Month: ${round(monthly,2)}</h3>", unsafe_allow_html=True)
-    c3.markdown(f"<h3 style='color:{color(yearly)}'>Year: ${round(yearly,2)}</h3>", unsafe_allow_html=True)
+
+    c1.markdown(
+        f"<h3 style='color:{color(daily)}'>Day: ${round(daily,2)}</h3>",
+        unsafe_allow_html=True
+    )
+
+    c2.markdown(
+        f"<h3 style='color:{color(weekly)}'>Week: ${round(weekly,2)}</h3>",
+        unsafe_allow_html=True
+    )
+
+    c3.markdown(
+        f"<h3 style='color:{color(monthly)}'>Month: ${round(monthly,2)}</h3>",
+        unsafe_allow_html=True
+    )
 
     st.divider()
 
