@@ -1,8 +1,3 @@
-# UPDATED VERSION WITH:
-# 1. Edit + Delete
-# 2. Better UI styling
-# 3. ROI + bankroll tracking
-
 import streamlit as st
 from datetime import date
 import calendar
@@ -23,6 +18,12 @@ sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 # ================= HELPERS =================
 
+def safe_parse_odds(val):
+    try:
+        return float(str(val).lower().replace("x", "").strip())
+    except:
+        return 0.0
+
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
@@ -33,13 +34,12 @@ def load_bets():
             "sport": r["sport"],
             "bet_type": r["bet_type"],
             "bet_line": r["bet_line"],
-            "odds": float(r["odds"]),
+            "odds": safe_parse_odds(r["odds"]),
             "units": float(r["units"]),
             "result": r["result"],
             "profit": float(r["profit"])
         })
     return bets
-
 
 def save_bet(bet):
     sheet.append_row([
@@ -47,20 +47,18 @@ def save_bet(bet):
         bet["odds"], bet["units"], bet["result"], bet["profit"]
     ])
 
-
 def update_bet(row, bet):
     sheet.update(f"A{row}:H{row}", [[
         str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
         bet["odds"], bet["units"], bet["result"], bet["profit"]
     ]])
 
-
 def delete_bet(row):
     sheet.delete_rows(row)
 
-
 def calc_profit(units, odds, result):
-    if result == "pending": return 0
+    if result == "pending":
+        return 0
     if odds >= 1.01 and odds < 10:
         return units * (odds - 1) if result == "win" else -units
     if odds > 0:
@@ -68,7 +66,6 @@ def calc_profit(units, odds, result):
     if odds < 0:
         return units * (100 / abs(odds)) if result == "win" else -units
     return 0
-
 
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
@@ -91,14 +88,19 @@ with t1:
     bets = sorted(bets, key=lambda x: x["date"], reverse=True)
 
     total_profit = sum(b["profit"] for b in bets)
-    total_units = sum(b["units"] if b["result"] == "win" else -b["units"] if b["result"] == "loss" else 0 for b in bets)
+    total_units = sum(
+        b["units"] if b["result"] == "win"
+        else -b["units"] if b["result"] == "loss"
+        else 0 for b in bets
+    )
 
     wins = sum(1 for b in bets if b["result"] == "win")
     losses = sum(1 for b in bets if b["result"] == "loss")
     closed = wins + losses
     winrate = (wins / closed * 100) if closed else 0
 
-    roi = (total_profit / (sum(abs(b["units"]) * UNIT_SIZE for b in bets))) * 100 if bets else 0
+    total_risk = sum(abs(b["units"]) * UNIT_SIZE for b in bets)
+    roi = (total_profit / total_risk * 100) if total_risk else 0
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Profit", f"${round(total_profit,2)}")
@@ -141,7 +143,11 @@ with t1:
 
         with st.form("edit_form"):
             new_units = st.number_input("Units", value=b["units"])
-            new_result = st.selectbox("Result", ["pending","win","loss","push"], index=["pending","win","loss","push"].index(b["result"]))
+            new_result = st.selectbox(
+                "Result",
+                ["pending","win","loss","push"],
+                index=["pending","win","loss","push"].index(b["result"])
+            )
 
             submit = st.form_submit_button("Save Changes")
 
