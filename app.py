@@ -5,7 +5,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Bet Tracker", layout="centered")
-
 st.title("📊 Bet Tracker Pro")
 
 UNIT_SIZE = st.number_input("Dollar value per unit", value=100)
@@ -70,16 +69,18 @@ def calc_profit(units, odds, result):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
+# store selected day
+if "selected_day" not in st.session_state:
+    st.session_state.selected_day = None
+
 # ================= TABS =================
 t1, t2, t3 = st.tabs(["📋 Tracker", "➕ Add Bet", "📅 Calendar"])
 
 # ================= TRACKER =================
 with t1:
-
     view = st.radio("View", ["All", "Open", "Closed"], horizontal=True)
 
     bets = st.session_state.bets
-
     if view == "Open":
         bets = [b for b in bets if b["result"] == "pending"]
     elif view == "Closed":
@@ -114,58 +115,28 @@ with t1:
     for b in bets:
         color = "#d1fae5" if b["profit"] > 0 else "#fee2e2" if b["profit"] < 0 else "#f1f5f9"
 
-        with st.container():
-            cols = st.columns([6,1,1])
+        cols = st.columns([6,1,1])
+        with cols[0]:
+            st.markdown(f"""
+            <div style='background:{color};padding:12px;border-radius:10px'>
+            <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
+            {b['bet_line']} | {b['odds']} | {b['result']}<br>
+            <b>${round(b['profit'],2)}</b>
+            </div>
+            """, unsafe_allow_html=True)
 
-            with cols[0]:
-                st.markdown(f"""
-                <div style='background:{color};padding:12px;border-radius:10px'>
-                <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
-                {b['bet_line']} | {b['odds']} | {b['result']}<br>
-                <b>${round(b['profit'],2)}</b>
-                </div>
-                """, unsafe_allow_html=True)
+        with cols[1]:
+            if st.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.editing = b
 
-            with cols[1]:
-                if st.button("✏️", key=f"edit_{b['row']}"):
-                    st.session_state.editing = b
-
-            with cols[2]:
-                if st.button("❌", key=f"del_{b['row']}"):
-                    delete_bet(b["row"])
-                    st.session_state.bets = load_bets()
-                    st.rerun()
-
-    # EDIT FORM
-    if "editing" in st.session_state:
-        st.subheader("Edit Bet")
-        b = st.session_state.editing
-
-        with st.form("edit_form"):
-            new_units = st.number_input("Units", value=b["units"])
-            new_result = st.selectbox(
-                "Result",
-                ["pending","win","loss","push"],
-                index=["pending","win","loss","push"].index(b["result"])
-            )
-
-            submit = st.form_submit_button("Save Changes")
-
-            if submit:
-                new_profit = calc_profit(new_units, b["odds"], new_result) * UNIT_SIZE
-
-                b["units"] = new_units
-                b["result"] = new_result
-                b["profit"] = new_profit
-
-                update_bet(b["row"], b)
+        with cols[2]:
+            if st.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
                 st.session_state.bets = load_bets()
-                del st.session_state.editing
                 st.rerun()
 
 # ================= ADD BET =================
 with t2:
-
     with st.form("add"):
         bet_date = st.date_input("Date", date.today())
         sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
@@ -177,7 +148,6 @@ with t2:
 
         if st.form_submit_button("Add Bet"):
             profit = calc_profit(units, odds, result) * UNIT_SIZE
-
             bet = {
                 "date": bet_date,
                 "sport": sport,
@@ -188,7 +158,6 @@ with t2:
                 "result": result,
                 "profit": profit
             }
-
             save_bet(bet)
             st.session_state.bets = load_bets()
             st.success("Bet added")
@@ -212,13 +181,7 @@ with t3:
         if b["date"].year == year and b["date"].month == month and b["result"] != "pending"
     )
 
-    total_color = "green" if monthly_total > 0 else "red" if monthly_total < 0 else "black"
-
-    st.markdown(
-        f"<h2 style='text-align:center;'>{selected_month_name} {year} "
-        f"<span style='color:{total_color};'>(${round(monthly_total,2)})</span></h2>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"## {selected_month_name} {year} (${round(monthly_total,2)})")
 
     totals = {}
     counts = {}
@@ -229,27 +192,31 @@ with t3:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    headers = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
-    cols = st.columns(7)
-    for i in range(7):
-        cols[i].markdown("**" + headers[i] + "**")
-
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
         for idx, day in enumerate(week):
-            if day == 0:
-                cols[idx].markdown("")
-            else:
+            if day != 0:
                 d = date(year, month, day)
                 val = totals.get(d, 0)
                 cnt = counts.get(d, 0)
 
-                bg = "#d1fae5" if val > 0 else "#fee2e2" if val < 0 else "#f1f5f9"
+                label = f"{day}\n${round(val,2)}\n{cnt} bets"
 
-                cols[idx].markdown(f"""
-                <div style='background:{bg};padding:8px;border-radius:10px'>
-                <b>{day}</b><br>
-                ${round(val,2)}<br>
-                {cnt} bets
-                </div>
-                """, unsafe_allow_html=True)
+                if cols[idx].button(label, key=f"day_{d}"):
+                    st.session_state.selected_day = d
+
+    # ================= SHOW DAY DETAILS =================
+    if st.session_state.selected_day:
+        st.divider()
+        st.subheader(f"Bets on {st.session_state.selected_day}")
+
+        day_bets = [
+            b for b in st.session_state.bets
+            if b["date"] == st.session_state.selected_day
+        ]
+
+        if not day_bets:
+            st.write("No bets")
+        else:
+            for b in day_bets:
+                st.write(f"{b['sport']} | {b['bet_line']} | {b['result']} | ${round(b['profit'],2)}")
