@@ -81,7 +81,6 @@ with t1:
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
 
-    # ✅ NEW TOTALS
     daily = sum(b["profit"] for b in bets if b["date"] == today)
     weekly = sum(b["profit"] for b in bets if b["date"] >= week_start)
     monthly = sum(b["profit"] for b in bets if b["date"] >= month_start)
@@ -89,7 +88,6 @@ with t1:
     def color(val):
         return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
 
-    # ✅ ORDER FIXED
     c1, c2, c3 = st.columns(3)
 
     c1.markdown(
@@ -234,6 +232,7 @@ with t3:
                 padding:10px;
                 border-radius:12px;
                 height:95px;
+                border:1px solid #cbd5f5;
             ">
                 <b>{day}</b><br>
                 ${round(val,2)}<br>
