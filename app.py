@@ -80,7 +80,7 @@ with t1:
 
     bets = st.session_state.bets
 
-    # ===== TOP STATS =====
+    # ===== STATS =====
     today = date.today()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
@@ -103,7 +103,7 @@ with t1:
 
     st.divider()
 
-    # ===== BET LIST (RESTORED) =====
+    # ===== BET LIST =====
     for b in sorted(bets, key=lambda x: x["date"], reverse=True):
 
         color_box = "#d1fae5" if b["profit"] > 0 else "#fee2e2" if b["profit"] < 0 else "#f1f5f9"
@@ -129,7 +129,29 @@ with t1:
                 st.session_state.bets = load_bets()
                 st.rerun()
 
-# ================= ADD BET (FULLY RESTORED) =================
+    # ===== EDIT FORM =====
+    if "editing" in st.session_state:
+        b = st.session_state.editing
+        st.subheader("Edit Bet")
+
+        with st.form("edit_form"):
+            new_units = st.number_input("Units", value=b["units"])
+            new_result = st.selectbox("Result", ["pending","win","loss","push"],
+                                      index=["pending","win","loss","push"].index(b["result"]))
+
+            if st.form_submit_button("Save"):
+                new_profit = calc_profit(new_units, b["odds"], new_result) * UNIT_SIZE
+
+                b["units"] = new_units
+                b["result"] = new_result
+                b["profit"] = new_profit
+
+                update_bet(b["row"], b)
+                st.session_state.bets = load_bets()
+                del st.session_state.editing
+                st.rerun()
+
+# ================= ADD BET =================
 with t2:
     with st.form("add"):
         bet_date = st.date_input("Date", date.today())
@@ -190,18 +212,11 @@ with t3:
             val = totals.get(d, 0)
             cnt = counts.get(d, 0)
 
-            bg = "#d1fae5" if val > 0 else "#fee2e2" if val < 0 else "#f1f5f9"
+            label = f"{day}\n${round(val,2)}\n{cnt} bets"
 
-            if cols[i].button(f"{day}", key=f"day_{d}"):
+            if cols[i].button(label, key=f"day_{d}"):
                 st.session_state.selected_day = d
 
-            cols[i].markdown(f"""
-            <div style='background:{bg};padding:10px;border-radius:10px;height:80px;margin-top:-60px'>
-            ${round(val,2)}<br>{cnt} bets
-            </div>
-            """, unsafe_allow_html=True)
-
-    # SHOW DAY DETAILS
     if st.session_state.selected_day:
         st.divider()
         st.subheader(f"Bets on {st.session_state.selected_day}")
