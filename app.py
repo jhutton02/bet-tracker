@@ -23,7 +23,6 @@ def safe_parse_odds(val):
     except:
         return 0.0
 
-# ✅ FIXED PROFIT FUNCTION
 def calc_profit(units, odds, result):
     result = str(result).lower().strip()
 
@@ -41,7 +40,6 @@ def calc_profit(units, odds, result):
 
     return 0
 
-# ✅ FIX: RECALCULATE PROFIT ON LOAD
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
@@ -51,7 +49,6 @@ def load_bets():
         units = float(r["units"])
         result = str(r["result"]).lower().strip()
 
-        # 🔥 ALWAYS RECALCULATE
         profit = calc_profit(units, odds, result) * UNIT_SIZE
 
         bets.append({
@@ -72,15 +69,6 @@ def save_bet(bet):
         str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
         bet["odds"], bet["units"], bet["result"], bet["profit"]
     ])
-
-def update_bet(row, bet):
-    sheet.update(f"A{row}:H{row}", [[
-        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
-        bet["odds"], bet["units"], bet["result"], bet["profit"]
-    ]])
-
-def delete_bet(row):
-    sheet.delete_rows(row)
 
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
@@ -111,15 +99,6 @@ with t1:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    date_options = sorted(totals.keys()) if totals else []
-    formatted_dates = [d.strftime("%-m/%-d/%y") for d in date_options]
-
-    selected_label = st.selectbox("Select a day", formatted_dates)
-
-    selected_day = None
-    if selected_label:
-        selected_day = date_options[formatted_dates.index(selected_label)]
-
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
 
@@ -146,11 +125,10 @@ with t1:
                 border-radius:14px;
                 height:100px;
                 border:1px solid rgba(0,0,0,0.08);
-                box-shadow:0 2px 4px rgba(0,0,0,0.05);
             ">
-                <b style="font-size:16px">{day}</b><br>
+                <b>{day}</b><br>
                 ${round(val,2)}<br>
-                <span style="font-size:12px;opacity:0.7">{cnt} bets</span>
+                {cnt} bets
             </div>
             """, unsafe_allow_html=True)
 
@@ -160,9 +138,9 @@ with t2:
         bet_date = st.date_input("Date", date.today())
         sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
         bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
-        bet_line = st.text_input("Bet Line")
-        odds = st.number_input("Odds", value=1.9)
-        units = st.number_input("Units", value=1.0)
+        bet_line = st.text_input("Bet")  # ✅ changed
+        odds = st.number_input("Odds", value=0.0)  # ✅ changed
+        units = st.number_input("Risk", value=1.0)  # ✅ changed
         result = st.selectbox("Result", ["pending","win","loss","push"])
 
         if st.form_submit_button("Add Bet"):
@@ -201,3 +179,23 @@ with t3:
     c1.markdown(f"<h3 style='color:{color(daily)}'>Day: ${round(daily,2)}</h3>", unsafe_allow_html=True)
     c2.markdown(f"<h3 style='color:{color(weekly)}'>Week: ${round(weekly,2)}</h3>", unsafe_allow_html=True)
     c3.markdown(f"<h3 style='color:{color(monthly)}'>Month: ${round(monthly,2)}</h3>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ✅ RESTORED BET LIST
+    for b in sorted(bets, key=lambda x: x["date"], reverse=True):
+
+        if b["profit"] > 0:
+            bg = "#d1fae5"
+        elif b["profit"] < 0:
+            bg = "#fee2e2"
+        else:
+            bg = "#f1f5f9"
+
+        st.markdown(f"""
+        <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:10px'>
+        <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
+        {b['bet_line']} | {b['result']}<br>
+        <b>${round(b['profit'],2)}</b>
+        </div>
+        """, unsafe_allow_html=True)
