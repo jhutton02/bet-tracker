@@ -69,9 +69,6 @@ def calc_profit(units, odds, result):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
-if "selected_day" not in st.session_state:
-    st.session_state.selected_day = None
-
 # ================= TABS =================
 t1, t2, t3 = st.tabs(["📋 Tracker", "➕ Add Bet", "📅 Calendar"])
 
@@ -80,7 +77,6 @@ with t1:
 
     bets = st.session_state.bets
 
-    # ===== STATS =====
     today = date.today()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
@@ -103,7 +99,6 @@ with t1:
 
     st.divider()
 
-    # ===== BET LIST =====
     for b in sorted(bets, key=lambda x: x["date"], reverse=True):
 
         color_box = "#d1fae5" if b["profit"] > 0 else "#fee2e2" if b["profit"] < 0 else "#f1f5f9"
@@ -129,7 +124,6 @@ with t1:
                 st.session_state.bets = load_bets()
                 st.rerun()
 
-    # ===== EDIT FORM =====
     if "editing" in st.session_state:
         b = st.session_state.editing
         st.subheader("Edit Bet")
@@ -141,7 +135,6 @@ with t1:
 
             if st.form_submit_button("Save"):
                 new_profit = calc_profit(new_units, b["odds"], new_result) * UNIT_SIZE
-
                 b["units"] = new_units
                 b["result"] = new_result
                 b["profit"] = new_profit
@@ -201,12 +194,15 @@ with t3:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    # ===== CALENDAR GRID =====
+    selected_day = st.selectbox(
+        "Select a day",
+        sorted(totals.keys()) if totals else []
+    )
+
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
 
         for i, day in enumerate(week):
-
             if day == 0:
                 cols[i].markdown("")
                 continue
@@ -215,58 +211,31 @@ with t3:
             val = totals.get(d, 0)
             cnt = counts.get(d, 0)
 
-            # 🎨 COLORS
             if val > 0:
                 bg = "#d1fae5"
-                text_color = "#065f46"
             elif val < 0:
                 bg = "#fee2e2"
-                text_color = "#7f1d1d"
             else:
                 bg = "#f1f5f9"
-                text_color = "#334155"
 
-            # 👆 CLICK
-            if cols[i].button("", key=f"day_{d}"):
-                st.session_state.selected_day = d
-
-            # 🎯 CARD UI
             cols[i].markdown(f"""
             <div style="
                 background:{bg};
-                color:{text_color};
                 padding:10px;
                 border-radius:12px;
                 height:95px;
-                margin-top:-70px;
-                display:flex;
-                flex-direction:column;
-                justify-content:space-between;
-                font-size:14px;
             ">
-                <div style="font-weight:700;font-size:16px;">
-                    {day}
-                </div>
-
-                <div>
-                    ${round(val,2)}
-                </div>
-
-                <div style="font-size:12px;opacity:0.8;">
-                    {cnt} bet{"s" if cnt != 1 else ""}
-                </div>
+                <b>{day}</b><br>
+                ${round(val,2)}<br>
+                {cnt} bets
             </div>
             """, unsafe_allow_html=True)
 
-    # ===== DAY DETAILS =====
-    if st.session_state.selected_day:
+    if selected_day:
         st.divider()
-        st.subheader(f"Bets on {st.session_state.selected_day}")
+        st.subheader(f"Bets on {selected_day}")
 
-        day_bets = [
-            b for b in st.session_state.bets
-            if b["date"] == st.session_state.selected_day
-        ]
+        day_bets = [b for b in st.session_state.bets if b["date"] == selected_day]
 
         for b in day_bets:
             color_box = "#d1fae5" if b["profit"] > 0 else "#fee2e2"
