@@ -74,6 +74,7 @@ t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
 # ================= CALENDAR =================
 with t1:
+
     today = date.today()
 
     col1, col2 = st.columns(2)
@@ -94,16 +95,19 @@ with t1:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
+    # ✅ FORMATTED DATE DROPDOWN
     date_options = sorted(totals.keys()) if totals else []
     formatted_dates = [d.strftime("%-m/%-d/%y") for d in date_options]
 
     selected_label = st.selectbox("Select a day", formatted_dates)
+
     selected_day = None
     if selected_label:
         selected_day = date_options[formatted_dates.index(selected_label)]
 
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
+
         for i, day in enumerate(week):
             if day == 0:
                 cols[i].markdown("")
@@ -157,9 +161,9 @@ with t2:
         bet_date = st.date_input("Date", date.today())
         sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
         bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
-        bet_line = st.text_input("Bet")  # ✅ renamed
-        odds = st.number_input("Odds", value=0.0)  # ✅ starts at 0
-        units = st.number_input("Risk", value=1.0)  # ✅ renamed
+        bet_line = st.text_input("Bet Line")
+        odds = st.number_input("Odds", value=1.9)
+        units = st.number_input("Units", value=1.0)
         result = st.selectbox("Result", ["pending","win","loss","push"])
 
         if st.form_submit_button("Add Bet"):
@@ -180,6 +184,7 @@ with t2:
 
 # ================= TRACKER =================
 with t3:
+
     bets = st.session_state.bets
 
     today = date.today()
@@ -246,7 +251,7 @@ with t3:
         st.subheader("Edit Bet")
 
         with st.form("edit_form"):
-            new_units = st.number_input("Risk", value=b["units"])  # ✅ consistent rename
+            new_units = st.number_input("Units", value=b["units"])
             new_result = st.selectbox("Result", ["pending","win","loss","push"],
                                       index=["pending","win","loss","push"].index(b["result"]))
 
