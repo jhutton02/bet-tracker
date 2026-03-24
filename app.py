@@ -171,14 +171,27 @@ with t1:
             else:
                 bg = "#f1f5f9"
 
-            st.markdown(f"""
-            <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:8px'>
-            <b>{b['sport']} | {b['bet_type']}</b><br>
-            {b['bet_line']} | {b['result']}<br>
-            Odds: {format_odds_display(b['odds'])}<br>
-            <b>${round(b['profit'],2)}</b>
-            </div>
-            """, unsafe_allow_html=True)
+            col1, col2, col3 = st.columns([8,1,1])
+
+            with col1:
+                st.markdown(f"""
+                <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:8px'>
+                <b>{b['sport']} | {b['bet_type']}</b><br>
+                {b['bet_line']} | {b['result']}<br>
+                Odds: {format_odds_display(b['odds'])}<br>
+                <b>${round(b['profit'],2)}</b>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                if st.button("✏️", key=f"cal_edit_{b['row']}"):
+                    st.session_state.edit_row = b["row"]
+
+            with col3:
+                if st.button("❌", key=f"cal_del_{b['row']}"):
+                    delete_bet(b["row"])
+                    st.session_state.bets = load_bets()
+                    st.rerun()
 
 # ================= ADD BET =================
 with t2:
@@ -243,7 +256,6 @@ with t3:
         </div>
         """, unsafe_allow_html=True)
 
-    # ✅ NEW PERFORMANCE METRICS
     total_bets = len(bets)
     wins = sum(1 for b in bets if b["profit"] > 0)
     total_risk = sum(b["units"] for b in bets)
@@ -258,7 +270,6 @@ with t3:
     m2.metric("ROI %", f"{round(roi,1)}%")
     m3.metric("Total Bets", total_bets)
 
-    # ================= CHART =================
     if bets:
         sorted_bets = sorted(bets, key=lambda x: x["date"])
         dates = []
@@ -273,17 +284,10 @@ with t3:
         fig, ax = plt.subplots()
 
         ax.plot(dates, running_total, linewidth=2.5)
-
-        ax.fill_between(dates, running_total,
-                        where=[v >= 0 for v in running_total],
-                        alpha=0.15)
-
-        ax.fill_between(dates, running_total,
-                        where=[v < 0 for v in running_total],
-                        alpha=0.15)
+        ax.fill_between(dates, running_total, where=[v >= 0 for v in running_total], alpha=0.15)
+        ax.fill_between(dates, running_total, where=[v < 0 for v in running_total], alpha=0.15)
 
         ax.axhline(0, linestyle="--", linewidth=1)
-
         ax.set_title("Profit Over Time", fontsize=13, pad=10)
         ax.set_ylabel("Total Profit ($)")
         ax.set_xlabel("Date")
@@ -299,7 +303,6 @@ with t3:
         ax.grid(alpha=0.2)
 
         plt.tight_layout()
-
         st.pyplot(fig)
 
     st.divider()
