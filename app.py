@@ -30,7 +30,6 @@ def safe_parse_odds(val):
     except:
         return 0.0
 
-# ✅ NEW: format odds for display only
 def format_odds_display(val):
     try:
         raw = str(val).lower().strip()
@@ -88,7 +87,7 @@ def load_bets():
             "sport": r["sport"],
             "bet_type": r["bet_type"],
             "bet_line": r["bet_line"],
-            "odds": r["odds"],  # keep raw
+            "odds": r["odds"],
             "units": risk,
             "result": result,
             "profit": profit
@@ -182,9 +181,21 @@ with t1:
         st.info("No bets for this day")
     else:
         for b in day_bets:
+
+            # ✅ NEW: color styling like tracker
+            if b["profit"] > 0:
+                bg = "#d1fae5"
+            elif b["profit"] < 0:
+                bg = "#fee2e2"
+            else:
+                bg = "#f1f5f9"
+
             st.markdown(f"""
-            <div style='background:#f1f5f9;padding:10px;border-radius:10px;margin-bottom:6px'>
-            {b['bet_line']} | {b['result']} | {format_odds_display(b['odds'])} | ${round(b['profit'],2)}
+            <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:8px'>
+            <b>{b['sport']} | {b['bet_type']}</b><br>
+            {b['bet_line']} | {b['result']}<br>
+            Odds: {format_odds_display(b['odds'])}<br>
+            <b>${round(b['profit'],2)}</b>
             </div>
             """, unsafe_allow_html=True)
 
