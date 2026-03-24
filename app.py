@@ -243,7 +243,7 @@ with t3:
         </div>
         """, unsafe_allow_html=True)
 
-    # ✅ NEW: PROFIT OVER TIME CHART
+    # ✅ UPDATED PROFESSIONAL CHART
     if bets:
         sorted_bets = sorted(bets, key=lambda x: x["date"])
         dates = []
@@ -256,11 +256,30 @@ with t3:
             running_total.append(total)
 
         fig, ax = plt.subplots()
-        ax.plot(dates, running_total)
-        ax.set_title("Profit Over Time")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Profit ($)")
+
+        ax.plot(dates, running_total, linewidth=2.5)
+
+        ax.fill_between(dates, running_total,
+                        where=[v >= 0 for v in running_total],
+                        alpha=0.15)
+
+        ax.fill_between(dates, running_total,
+                        where=[v < 0 for v in running_total],
+                        alpha=0.15)
+
+        ax.axhline(0, linestyle="--", linewidth=1)
+
+        ax.set_title("Profit Over Time", fontsize=13, pad=10)
+        ax.set_ylabel("$")
+        ax.set_xlabel("")
+
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+        ax.grid(alpha=0.2)
+
         plt.xticks(rotation=45)
+        plt.tight_layout()
 
         st.pyplot(fig)
 
