@@ -17,7 +17,23 @@ sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 def safe_parse_odds(val):
     try:
-        return float(str(val).lower().replace("x", "").strip())
+        val = str(val).lower().replace(" ", "").strip()
+
+        # Handle "2x", "2.5x"
+        if "x" in val:
+            return float(val.replace("x", ""))
+
+        # Handle +210
+        if val.startswith("+"):
+            return float(val)
+
+        # Handle -130
+        if val.startswith("-"):
+            return float(val)
+
+        # Handle decimal (1.9, 2.1, etc)
+        return float(val)
+
     except:
         return 0.0
 
@@ -31,10 +47,15 @@ def calc_profit(risk, odds, result):
     if result == "push":
         return 0
 
+    # Decimal / multiplier (2.0, 2.5, etc)
     if odds >= 1:
         return risk * (odds - 1)
+
+    # American +
     if odds > 0:
         return risk * (odds / 100)
+
+    # American -
     if odds < 0:
         return risk * (100 / abs(odds))
 
@@ -164,19 +185,20 @@ with t2:
         sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
         bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
         wager = st.text_input("Wager")
-        odds = st.number_input("Odds", value=1.90)
+        odds = st.text_input("Odds (e.g. -130, +210, 2x, 2.5)")
         risk = st.number_input("Risk ($)", value=100.0)
         result = st.selectbox("Result", ["pending","win","loss","push"])
 
         if st.form_submit_button("Add Bet"):
-            profit = calc_profit(risk, odds, result)
+            parsed_odds = safe_parse_odds(odds)
+            profit = calc_profit(risk, parsed_odds, result)
 
             bet = {
                 "date": bet_date,
                 "sport": sport,
                 "bet_type": bet_type,
                 "bet_line": wager,
-                "odds": odds,
+                "odds": odds,  # store raw input
                 "units": risk,
                 "result": result,
                 "profit": profit
@@ -205,6 +227,7 @@ with t3:
             <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:10px'>
             <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
             <b>Wager:</b> {b['bet_line']} | {b['result']}<br>
+            Odds: {b['odds']}<br>
             <b>${round(b['profit'],2)}</b>
             </div>
             """, unsafe_allow_html=True)
@@ -228,12 +251,13 @@ with t3:
 
         with st.form("edit"):
             new_wager = st.text_input("Wager", bet["bet_line"])
-            new_odds = st.number_input("Odds", value=bet["odds"])
+            new_odds = st.text_input("Odds", str(bet["odds"]))
             new_risk = st.number_input("Risk ($)", value=bet["units"])
             new_result = st.selectbox("Result", ["pending","win","loss","push"], index=["pending","win","loss","push"].index(bet["result"]))
 
             if st.form_submit_button("Save"):
-                profit = calc_profit(new_risk, new_odds, new_result)
+                parsed_odds = safe_parse_odds(new_odds)
+                profit = calc_profit(new_risk, parsed_odds, new_result)
 
                 updated = {
                     "date": bet["date"],
