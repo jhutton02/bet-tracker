@@ -3,6 +3,7 @@ from datetime import date, timedelta
 import calendar
 import gspread
 from google.oauth2.service_account import Credentials
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Bet Tracker", layout="centered")
 st.title("📊 Bet Tracker Pro")
@@ -18,67 +19,51 @@ sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 def safe_parse_odds(val):
     try:
         val = str(val).lower().replace(" ", "").strip()
-
         if "x" in val:
             return float(val.replace("x", ""))
-
         if val.startswith("+") or val.startswith("-"):
             return float(val)
-
         return float(val)
-
     except:
         return 0.0
 
 def format_odds_display(val):
     try:
         raw = str(val).lower().strip()
-
         if "x" in raw:
             return raw
-
         if raw.startswith("+") or raw.startswith("-"):
             return raw
-
         num = float(raw)
-
         if num >= 1:
             return f"{num}x"
-
         return raw
     except:
         return val
 
 def calc_profit(risk, odds, result):
     result = str(result).lower().strip()
-
     if result == "pending":
         return 0
     if result == "loss":
         return -risk
     if result == "push":
         return 0
-
     if odds >= 1:
         return risk * (odds - 1)
-
     if odds > 0:
         return risk * (odds / 100)
-
     if odds < 0:
         return risk * (100 / abs(odds))
-
     return 0
 
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
     for i, r in enumerate(rows, start=2):
-
         odds = safe_parse_odds(r["odds"])
         risk = float(r["units"])
         result = str(r["result"]).lower().strip()
-
         profit = calc_profit(risk, odds, result)
 
         bets.append({
@@ -120,7 +105,6 @@ t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
 # ================= CALENDAR =================
 with t1:
-
     today = date.today()
 
     col1, col2 = st.columns(2)
@@ -133,8 +117,6 @@ with t1:
     month = month_names.index(selected_month_name) + 1
 
     days_in_month = calendar.monthrange(year, month)[1]
-
-    # ✅ UPDATED DROPDOWN FORMAT
     day_options = [f"{month}/{d}" for d in range(1, days_in_month + 1)]
     selected_label = st.selectbox("Select Day", day_options)
     selected_day = int(selected_label.split("/")[1])
@@ -151,7 +133,6 @@ with t1:
 
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
-
         for i, day in enumerate(week):
             if day == 0:
                 cols[i].markdown("")
@@ -170,9 +151,7 @@ with t1:
 
             cols[i].markdown(f"""
             <div style="background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;">
-                <b>{day}</b><br>
-                ${round(val,2)}<br>
-                {cnt} bets
+                <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
             </div>
             """, unsafe_allow_html=True)
 
@@ -185,7 +164,6 @@ with t1:
         st.info("No bets for this day")
     else:
         for b in day_bets:
-
             if b["profit"] > 0:
                 bg = "#d1fae5"
             elif b["profit"] < 0:
@@ -250,28 +228,41 @@ with t3:
     def color(val):
         return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
 
-    # ✅ BOXED STATS
     c1, c2, c3, c4 = st.columns(4)
-
     for col, label, val in zip(
         [c1, c2, c3, c4],
         ["Day", "Week", "Month", "Year"],
         [daily, weekly, monthly, yearly]
     ):
         col.markdown(f"""
-        <div style='
-            background:#ffffff;
-            padding:14px;
-            border-radius:12px;
-            border:1px solid rgba(0,0,0,0.08);
-            text-align:center;
-        '>
+        <div style='background:#ffffff;padding:14px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);text-align:center;'>
             <div style='font-size:14px;color:#6b7280'>{label}</div>
             <div style='font-size:20px;font-weight:bold;color:{color(val)}'>
                 ${round(val,2)}
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    # ✅ NEW: PROFIT OVER TIME CHART
+    if bets:
+        sorted_bets = sorted(bets, key=lambda x: x["date"])
+        dates = []
+        running_total = []
+        total = 0
+
+        for b in sorted_bets:
+            total += b["profit"]
+            dates.append(b["date"])
+            running_total.append(total)
+
+        fig, ax = plt.subplots()
+        ax.plot(dates, running_total)
+        ax.set_title("Profit Over Time")
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Profit ($)")
+        plt.xticks(rotation=45)
+
+        st.pyplot(fig)
 
     st.divider()
 
