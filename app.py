@@ -182,7 +182,6 @@ with t1:
     else:
         for b in day_bets:
 
-            # ✅ NEW: color styling like tracker
             if b["profit"] > 0:
                 bg = "#d1fae5"
             elif b["profit"] < 0:
@@ -231,6 +230,29 @@ with t2:
 
 # ================= TRACKER =================
 with t3:
+
+    bets = st.session_state.bets
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+
+    daily = sum(b["profit"] for b in bets if b["date"] == today)
+    weekly = sum(b["profit"] for b in bets if b["date"] >= week_start)
+    monthly = sum(b["profit"] for b in bets if b["date"] >= month_start)
+    yearly = sum(b["profit"] for b in bets if b["date"] >= year_start)
+
+    def color(val):
+        return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.markdown(f"<h3 style='color:{color(daily)}'>Day: ${round(daily,2)}</h3>", unsafe_allow_html=True)
+    c2.markdown(f"<h3 style='color:{color(weekly)}'>Week: ${round(weekly,2)}</h3>", unsafe_allow_html=True)
+    c3.markdown(f"<h3 style='color:{color(monthly)}'>Month: ${round(monthly,2)}</h3>", unsafe_allow_html=True)
+    c4.markdown(f"<h3 style='color:{color(yearly)}'>Year: ${round(yearly,2)}</h3>", unsafe_allow_html=True)
+
+    st.divider()
 
     for b in sorted(st.session_state.bets, key=lambda x: x["date"], reverse=True):
 
