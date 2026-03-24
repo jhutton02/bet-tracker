@@ -243,7 +243,7 @@ with t3:
         </div>
         """, unsafe_allow_html=True)
 
-    # ✅ CLEANER CHART
+    # ✅ FIXED CLEAN CHART (no syntax error)
     if bets:
         sorted_bets = sorted(bets, key=lambda x: x["date"])
         dates = []
@@ -273,10 +273,11 @@ with t3:
         ax.set_ylabel("Total Profit ($)")
         ax.set_xlabel("Date")
 
-        ax.set_xticks(dates[::max(1, len(dates)//6)])
-        ax.set_xticklabels(
-            [f"{d.month}/{d.day}" for d in dates[::max(1, len(dates)//6)]
-        )
+        tick_dates = dates[::max(1, len(dates)//6)]
+        tick_labels = [f"{d.month}/{d.day}" for d in tick_dates]
+
+        ax.set_xticks(tick_dates)
+        ax.set_xticklabels(tick_labels)
 
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
