@@ -19,23 +19,36 @@ def safe_parse_odds(val):
     try:
         val = str(val).lower().replace(" ", "").strip()
 
-        # Handle "2x", "2.5x"
         if "x" in val:
             return float(val.replace("x", ""))
 
-        # Handle +210
-        if val.startswith("+"):
+        if val.startswith("+") or val.startswith("-"):
             return float(val)
 
-        # Handle -130
-        if val.startswith("-"):
-            return float(val)
-
-        # Handle decimal (1.9, 2.1, etc)
         return float(val)
 
     except:
         return 0.0
+
+# ✅ NEW: format odds for display only
+def format_odds_display(val):
+    try:
+        raw = str(val).lower().strip()
+
+        if "x" in raw:
+            return raw
+
+        if raw.startswith("+") or raw.startswith("-"):
+            return raw
+
+        num = float(raw)
+
+        if num >= 1:
+            return f"{num}x"
+
+        return raw
+    except:
+        return val
 
 def calc_profit(risk, odds, result):
     result = str(result).lower().strip()
@@ -47,15 +60,12 @@ def calc_profit(risk, odds, result):
     if result == "push":
         return 0
 
-    # Decimal / multiplier (2.0, 2.5, etc)
     if odds >= 1:
         return risk * (odds - 1)
 
-    # American +
     if odds > 0:
         return risk * (odds / 100)
 
-    # American -
     if odds < 0:
         return risk * (100 / abs(odds))
 
@@ -78,7 +88,7 @@ def load_bets():
             "sport": r["sport"],
             "bet_type": r["bet_type"],
             "bet_line": r["bet_line"],
-            "odds": odds,
+            "odds": r["odds"],  # keep raw
             "units": risk,
             "result": result,
             "profit": profit
@@ -174,7 +184,7 @@ with t1:
         for b in day_bets:
             st.markdown(f"""
             <div style='background:#f1f5f9;padding:10px;border-radius:10px;margin-bottom:6px'>
-            {b['bet_line']} | {b['result']} | ${round(b['profit'],2)}
+            {b['bet_line']} | {b['result']} | {format_odds_display(b['odds'])} | ${round(b['profit'],2)}
             </div>
             """, unsafe_allow_html=True)
 
@@ -198,7 +208,7 @@ with t2:
                 "sport": sport,
                 "bet_type": bet_type,
                 "bet_line": wager,
-                "odds": odds,  # store raw input
+                "odds": odds,
                 "units": risk,
                 "result": result,
                 "profit": profit
@@ -227,7 +237,7 @@ with t3:
             <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:10px'>
             <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
             <b>Wager:</b> {b['bet_line']} | {b['result']}<br>
-            Odds: {b['odds']}<br>
+            Odds: {format_odds_display(b['odds'])}<br>
             <b>${round(b['profit'],2)}</b>
             </div>
             """, unsafe_allow_html=True)
@@ -242,7 +252,6 @@ with t3:
                 st.session_state.bets = load_bets()
                 st.rerun()
 
-    # EDIT FORM
     if st.session_state.edit_row:
         st.divider()
         st.subheader("Edit Bet")
