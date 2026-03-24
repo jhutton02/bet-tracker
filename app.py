@@ -133,7 +133,11 @@ with t1:
     month = month_names.index(selected_month_name) + 1
 
     days_in_month = calendar.monthrange(year, month)[1]
-    selected_day = st.selectbox("Select Day", list(range(1, days_in_month + 1)))
+
+    # ✅ UPDATED DROPDOWN FORMAT
+    day_options = [f"{month}/{d}" for d in range(1, days_in_month + 1)]
+    selected_label = st.selectbox("Select Day", day_options)
+    selected_day = int(selected_label.split("/")[1])
     selected_date = date(year, month, selected_day)
 
     totals = {}
@@ -246,11 +250,28 @@ with t3:
     def color(val):
         return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
 
+    # ✅ BOXED STATS
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f"<h3 style='color:{color(daily)}'>Day: ${round(daily,2)}</h3>", unsafe_allow_html=True)
-    c2.markdown(f"<h3 style='color:{color(weekly)}'>Week: ${round(weekly,2)}</h3>", unsafe_allow_html=True)
-    c3.markdown(f"<h3 style='color:{color(monthly)}'>Month: ${round(monthly,2)}</h3>", unsafe_allow_html=True)
-    c4.markdown(f"<h3 style='color:{color(yearly)}'>Year: ${round(yearly,2)}</h3>", unsafe_allow_html=True)
+
+    for col, label, val in zip(
+        [c1, c2, c3, c4],
+        ["Day", "Week", "Month", "Year"],
+        [daily, weekly, monthly, yearly]
+    ):
+        col.markdown(f"""
+        <div style='
+            background:#ffffff;
+            padding:14px;
+            border-radius:12px;
+            border:1px solid rgba(0,0,0,0.08);
+            text-align:center;
+        '>
+            <div style='font-size:14px;color:#6b7280'>{label}</div>
+            <div style='font-size:20px;font-weight:bold;color:{color(val)}'>
+                ${round(val,2)}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
 
