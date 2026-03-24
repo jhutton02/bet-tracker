@@ -214,5 +214,33 @@ with t2:
 with t3:
     st.subheader("All Bets")
 
-    for b in st.session_state.bets:
-        st.write(b)
+    for b in sorted(st.session_state.bets, key=lambda x: x["date"], reverse=True):
+
+        if b["profit"] > 0:
+            bg = "#d1fae5"
+        elif b["profit"] < 0:
+            bg = "#fee2e2"
+        else:
+            bg = "#f1f5f9"
+
+        col1, col2, col3 = st.columns([6,1,1])
+
+        with col1:
+            st.markdown(f"""
+            <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:10px'>
+            <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
+            {b['bet_line']} | {b['result']}<br>
+            Odds: {format_odds_display(b['odds'])}<br>
+            <b>${round(b['profit'],2)}</b>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            if st.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.edit_row = b["row"]
+
+        with col3:
+            if st.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
+                st.session_state.bets = load_bets()
+                st.rerun()
