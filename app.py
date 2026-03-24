@@ -26,20 +26,16 @@ def calc_profit(risk, odds, result):
 
     if result == "pending":
         return 0
-
     if result == "loss":
         return -risk
-
     if result == "push":
         return 0
 
-    if odds >= 1:  # decimal odds
+    if odds >= 1:
         return risk * (odds - 1)
-
-    if odds > 0:  # american +
+    if odds > 0:
         return risk * (odds / 100)
-
-    if odds < 0:  # american -
+    if odds < 0:
         return risk * (100 / abs(odds))
 
     return 0
@@ -94,6 +90,12 @@ with t1:
 
     month = month_names.index(selected_month_name) + 1
 
+    # 👉 NEW: Day selector dropdown
+    days_in_month = calendar.monthrange(year, month)[1]
+    selected_day = st.selectbox("Select Day", list(range(1, days_in_month + 1)))
+
+    selected_date = date(year, month, selected_day)
+
     totals = {}
     counts = {}
 
@@ -137,6 +139,32 @@ with t1:
                 <b>{day}</b><br>
                 ${round(val,2)}<br>
                 {cnt} bets
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ================= SHOW SELECTED DAY BETS =================
+    st.divider()
+    st.subheader(f"Bets for {selected_date}")
+
+    day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
+
+    if not day_bets:
+        st.info("No bets for this day")
+    else:
+        for b in day_bets:
+
+            if b["profit"] > 0:
+                bg = "#d1fae5"
+            elif b["profit"] < 0:
+                bg = "#fee2e2"
+            else:
+                bg = "#f1f5f9"
+
+            st.markdown(f"""
+            <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:10px'>
+            <b>{b['sport']} | {b['bet_type']}</b><br>
+            <b>Wager:</b> {b['bet_line']} | {b['result']}<br>
+            <b>${round(b['profit'],2)}</b>
             </div>
             """, unsafe_allow_html=True)
 
