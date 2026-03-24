@@ -90,6 +90,7 @@ t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
 # ================= CALENDAR =================
 with t1:
+
     today = date.today()
 
     col1, col2 = st.columns(2)
@@ -116,8 +117,10 @@ with t1:
 
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
+
         for i, day in enumerate(week):
             if day == 0:
+                cols[i].markdown("")
                 continue
 
             d = date(year, month, day)
@@ -133,7 +136,9 @@ with t1:
 
             cols[i].markdown(f"""
             <div style="background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;">
-                <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
+                <b>{day}</b><br>
+                ${round(val,2)}<br>
+                {cnt} bets
             </div>
             """, unsafe_allow_html=True)
 
@@ -142,8 +147,15 @@ with t1:
 
     day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
 
-    for b in day_bets:
-        st.write(f"{b['bet_line']} | {b['result']} | ${b['profit']}")
+    if not day_bets:
+        st.info("No bets for this day")
+    else:
+        for b in day_bets:
+            st.markdown(f"""
+            <div style='background:#f1f5f9;padding:10px;border-radius:10px;margin-bottom:6px'>
+            {b['bet_line']} | {b['result']} | ${round(b['profit'],2)}
+            </div>
+            """, unsafe_allow_html=True)
 
 # ================= ADD BET =================
 with t2:
@@ -177,15 +189,22 @@ with t2:
 # ================= TRACKER =================
 with t3:
 
-    for b in st.session_state.bets:
+    for b in sorted(st.session_state.bets, key=lambda x: x["date"], reverse=True):
+
+        if b["profit"] > 0:
+            bg = "#d1fae5"
+        elif b["profit"] < 0:
+            bg = "#fee2e2"
+        else:
+            bg = "#f1f5f9"
 
         col1, col2, col3 = st.columns([6,1,1])
 
         with col1:
             st.markdown(f"""
-            <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:10px'>
-            <b>{b['date']}</b> | {b['sport']}<br>
-            {b['bet_line']} | {b['result']}<br>
+            <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:10px'>
+            <b>{b['date']}</b> | {b['sport']} | {b['bet_type']}<br>
+            <b>Wager:</b> {b['bet_line']} | {b['result']}<br>
             <b>${round(b['profit'],2)}</b>
             </div>
             """, unsafe_allow_html=True)
@@ -200,7 +219,7 @@ with t3:
                 st.session_state.bets = load_bets()
                 st.rerun()
 
-    # ================= EDIT FORM =================
+    # EDIT FORM
     if st.session_state.edit_row:
         st.divider()
         st.subheader("Edit Bet")
