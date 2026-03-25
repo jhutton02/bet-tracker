@@ -21,6 +21,8 @@ def safe_parse_odds(val):
         val = str(val).lower().replace(" ", "").strip()
         if "x" in val:
             return float(val.replace("x", ""))
+        if val.startswith("+") or val.startswith("-"):
+            return float(val)
         return float(val)
     except:
         return 0.0
@@ -29,6 +31,8 @@ def format_odds_display(val):
     try:
         raw = str(val).lower().strip()
         if "x" in raw:
+            return raw
+        if raw.startswith("+") or raw.startswith("-"):
             return raw
         num = float(raw)
         if num >= 1:
@@ -62,18 +66,19 @@ def parse_date_safe(val):
         except:
             return None
 
+# ✅ SMALL UI ADDITION ONLY
 def result_badge(result):
     result = result.lower()
-    if result == "win":
-        bg, color = "#16a34a", "white"
-    elif result == "loss":
-        bg, color = "#dc2626", "white"
-    elif result == "pending":
-        bg, color = "#facc15", "black"
-    else:
-        bg, color = "#64748b", "white"
+    colors = {
+        "win": "#16a34a",
+        "loss": "#dc2626",
+        "pending": "#facc15",
+        "push": "#64748b"
+    }
+    bg = colors.get(result, "#64748b")
+    text_color = "black" if result == "pending" else "white"
 
-    return f"<span style='background:{bg};color:{color};padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
+    return f"<span style='background:{bg};color:{text_color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
 
 def load_bets():
     rows = sheet.get_all_records()
@@ -141,6 +146,39 @@ with t1:
     selected_day = int(selected_label.split("/")[1])
     selected_date = date(year, month, selected_day)
 
+    totals = {}
+    counts = {}
+
+    for b in st.session_state.bets:
+        if b["date"] and b["date"].year == year and b["date"].month == month:
+            d = b["date"]
+            totals[d] = totals.get(d, 0) + b["profit"]
+            counts[d] = counts.get(d, 0) + 1
+
+    for week in calendar.monthcalendar(year, month):
+        cols = st.columns(7)
+        for i, day in enumerate(week):
+            if day == 0:
+                cols[i].markdown("")
+                continue
+
+            d = date(year, month, day)
+            val = totals.get(d, 0)
+            cnt = counts.get(d, 0)
+
+            if val > 0:
+                bg = "#16a34a"; tc = "white"
+            elif val < 0:
+                bg = "#dc2626"; tc = "white"
+            else:
+                bg = "#f1f5f9"; tc = "black"
+
+            cols[i].markdown(f"""
+            <div style="background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;">
+                <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
+            </div>
+            """, unsafe_allow_html=True)
+
     st.divider()
     st.subheader(f"Bets for {selected_date}")
 
@@ -153,32 +191,14 @@ with t1:
             col1, col2, col3 = st.columns([8,1,1])
 
             with col1:
-                card_html = f"""
-                <div style='background:#1f2937;padding:14px;border-radius:16px;margin-bottom:10px;color:white;'>
-
-                    <div style='display:flex;justify-content:space-between;align-items:center;'>
-                        <div style='font-weight:600'>
-                            {b['sport']} | {b['bet_type']}
-                        </div>
-                        {result_badge(b['result'])}
-                    </div>
-
-                    <div style='margin-top:6px;color:#d1d5db'>
-                        {b['bet_line']}
-                    </div>
-
-                    <div style='margin-top:8px;display:flex;justify-content:space-between;'>
-                        <span style='color:#9ca3af'>
-                            Odds: {format_odds_display(b['odds'])}
-                        </span>
-                        <span style='font-weight:bold'>
-                            ${round(b['profit'],2)}
-                        </span>
-                    </div>
-
+                st.markdown(f"""
+                <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
+                <b>{b['sport']} | {b['bet_type']}</b><br>
+                {b['bet_line']} {result_badge(b['result'])}<br>
+                Odds: {format_odds_display(b['odds'])}<br>
+                <b>${round(b['profit'],2)}</b>
                 </div>
-                """
-                st.markdown(card_html, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
             with col2:
                 if st.button("✏️", key=f"cal_edit_{b['row']}"):
@@ -227,19 +247,3 @@ with t3:
 
     total_profit = sum(b["profit"] for b in bets)
     st.metric("Total Profit", f"${round(total_profit,2)}")
-
-    if bets:
-        sorted_bets = sorted(bets, key=lambda x: x["date"])
-        dates = []
-        running_total = []
-        total = 0
-
-        for b in sorted_bets:
-            total += b["profit"]
-            dates.append(b["date"])
-            running_total.append(total)
-
-        fig, ax = plt.subplots()
-        ax.plot(dates, running_total)
-        ax.axhline(0, linestyle="--")
-        st.pyplot(fig)
