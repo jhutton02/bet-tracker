@@ -287,8 +287,63 @@ with t2:
 with t3:
     bets = st.session_state.bets
 
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+
+    daily = sum(b["profit"] for b in bets if b["date"] == today)
+    weekly = sum(b["profit"] for b in bets if b["date"] >= week_start)
+    monthly = sum(b["profit"] for b in bets if b["date"] >= month_start)
+    yearly = sum(b["profit"] for b in bets if b["date"] >= year_start)
+
+    def color(val):
+        return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
+
+    c1, c2, c3, c4 = st.columns(4)
+    for col, label, val in zip(
+        [c1, c2, c3, c4],
+        ["Day", "Week", "Month", "Year"],
+        [daily, weekly, monthly, yearly]
+    ):
+        col.markdown(f"""
+        <div style='text-align:center;'>
+            <div style='font-size:14px;color:#6b7280'>{label}</div>
+            <div style='font-size:28px;font-weight:bold;color:{color(val)}'>
+                ${round(val,2)}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    total_bets = len(bets)
+    wins = sum(1 for b in bets if b["profit"] > 0)
     total_risk = sum(get_risk(b) for b in bets)
     total_profit = sum(b["profit"] for b in bets)
 
-    st.metric("Total Risk", f"${round(total_risk,2)}")
-    st.metric("Total Profit", f"${round(total_profit,2)}")
+    win_pct = (wins / total_bets * 100) if total_bets else 0
+    roi = (total_profit / total_risk * 100) if total_risk else 0
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Win %", f"{round(win_pct,1)}%")
+    m2.metric("ROI %", f"{round(roi,1)}%")
+    m3.metric("Total Bets", total_bets)
+
+    if bets:
+        sorted_bets = sorted(bets, key=lambda x: x["date"])
+        dates = []
+        running_total = []
+        total = 0
+
+        for b in sorted_bets:
+            total += b["profit"]
+            dates.append(b["date"])
+            running_total.append(total)
+
+        fig, ax = plt.subplots()
+        ax.plot(dates, running_total)
+        ax.axhline(0, linestyle="--")
+
+        ax.set_xticks(dates[::max(1, len(dates)//6)])
+        ax.set_xticklabels([f"{d.month}/{d.day}" for d in dates[::max(1, len(dates)//6)]])
+
+        st.pyplot(fig)
