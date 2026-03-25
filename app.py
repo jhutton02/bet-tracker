@@ -21,6 +21,8 @@ def safe_parse_odds(val):
         val = str(val).lower().replace(" ", "").strip()
         if "x" in val:
             return float(val.replace("x", ""))
+        if val.startswith("+") or val.startswith("-"):
+            return float(val)
         return float(val)
     except:
         return 0.0
@@ -35,7 +37,15 @@ def calc_to_win(risk, odds):
 
 def format_odds_display(val):
     try:
-        return f"{float(str(val).replace('x','')):.2f}x"
+        raw = str(val).lower().strip()
+        if "x" in raw:
+            return raw
+        if raw.startswith("+") or raw.startswith("-"):
+            return raw
+        num = float(raw)
+        if num >= 1:
+            return f"{num}x"
+        return raw
     except:
         return val
 
@@ -47,24 +57,35 @@ def calc_profit(risk, odds, result):
         return -risk
     if result == "push":
         return 0
-    return risk * (odds - 1)
+    if odds >= 1:
+        return risk * (odds - 1)
+    if odds > 0:
+        return risk * (odds / 100)
+    if odds < 0:
+        return risk * (100 / abs(odds))
+    return 0
 
 def parse_date_safe(val):
     try:
         return datetime.strptime(str(val), "%Y-%m-%d").date()
     except:
-        return None
+        try:
+            return datetime.strptime(str(val), "%m/%d/%Y").date()
+        except:
+            return None
 
-def get_risk(b):
-    return float(b.get("risk", b.get("units", 0)))
-
+# ================= 🔑 FIX IS HERE =================
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
     for i, r in enumerate(rows, start=2):
-        risk = float(r.get("risk", r.get("units", 0)))
         odds = safe_parse_odds(r["odds"])
+
+        # 🔥 STANDARDIZE HERE
+        risk = float(r.get("risk", r.get("units", 0)))
+
         result = str(r["result"]).lower().strip()
+        profit = calc_profit(risk, odds, result)
 
         bets.append({
             "row": i,
@@ -73,9 +94,9 @@ def load_bets():
             "bet_type": r["bet_type"],
             "bet_line": r["bet_line"],
             "odds": r["odds"],
-            "risk": risk,
+            "risk": risk,   # ALWAYS risk now
             "result": result,
-            "profit": calc_profit(risk, odds, result)
+            "profit": profit
         })
     return bets
 
@@ -103,21 +124,6 @@ if "edit_row" not in st.session_state:
 
 # ================= TABS =================
 t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
-
-# ================= CALENDAR =================
-with t1:
-    st.subheader("Bets")
-
-    for b in st.session_state.bets:
-        risk_val = get_risk(b)
-
-        st.markdown(f"""
-        **{b['sport']} | {b['bet_type']}**  
-        {b['bet_line']}  
-        Odds: {format_odds_display(b['odds'])}  
-        Risk: ${risk_val}  
-        Profit: ${round(b['profit'],2)}
-        """)
 
 # ================= ADD BET =================
 with t2:
@@ -154,11 +160,24 @@ with t2:
             st.success("Bet added")
             st.rerun()
 
+# ================= CALENDAR =================
+with t1:
+    st.subheader("Bets")
+
+    for b in st.session_state.bets:
+        st.markdown(f"""
+        **{b['sport']} | {b['bet_type']}**  
+        {b['bet_line']}  
+        Odds: {b['odds']}  
+        Risk: ${b['risk']}  
+        Profit: ${round(b['profit'],2)}
+        """)
+
 # ================= TRACKER =================
 with t3:
     bets = st.session_state.bets
 
-    total_risk = sum(get_risk(b) for b in bets)   # ✅ FIXED
+    total_risk = sum(b["risk"] for b in bets)
     total_profit = sum(b["profit"] for b in bets)
 
     st.metric("Total Risk", f"${round(total_risk,2)}")
