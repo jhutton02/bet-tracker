@@ -18,8 +18,7 @@ sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 def safe_parse_odds(val):
     try:
-        val = str(val).lower().replace("x", "").strip()
-        return float(val)
+        return float(str(val).lower().replace("x","").strip())
     except:
         return 0.0
 
@@ -30,9 +29,7 @@ def format_odds_display(val):
         return val
 
 def calc_to_win(risk, odds):
-    if odds >= 1:
-        return risk * (odds - 1)
-    return 0
+    return risk * (odds - 1)
 
 def calc_odds(risk, to_win):
     if risk == 0:
@@ -58,9 +55,13 @@ def parse_date_safe(val):
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
+
     for i, r in enumerate(rows, start=2):
         odds = safe_parse_odds(r["odds"])
-        risk = float(r["units"])
+
+        # ✅ FIX: supports old "units"
+        risk = float(r.get("risk", r.get("units", 0)))
+
         result = str(r["result"]).lower().strip()
         profit = calc_profit(risk, odds, result)
 
@@ -75,18 +76,34 @@ def load_bets():
             "result": result,
             "profit": profit
         })
+
     return bets
 
 def save_bet(bet):
     sheet.append_row([
-        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
-        bet["odds"], bet["risk"], bet["result"], bet["profit"]
+        str(bet["date"]),
+        bet["sport"],
+        bet["bet_type"],
+        bet["bet_line"],
+        bet["odds"],
+        bet["risk"],   # still saves into same column
+        bet["result"],
+        bet["profit"]
     ])
+
+def delete_bet(row):
+    sheet.delete_rows(row)
 
 def update_bet(row, bet):
     sheet.update(f"A{row}:H{row}", [[
-        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
-        bet["odds"], bet["risk"], bet["result"], bet["profit"]
+        str(bet["date"]),
+        bet["sport"],
+        bet["bet_type"],
+        bet["bet_line"],
+        bet["odds"],
+        bet["risk"],
+        bet["result"],
+        bet["profit"]
     ]])
 
 # ================= STATE =================
@@ -101,27 +118,42 @@ t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
 # ================= CALENDAR =================
 with t1:
-    today = date.today()
-    st.subheader("Calendar")
+    st.subheader("Calendar Bets")
 
     for b in st.session_state.bets:
-        st.markdown(f"""
-        **{b['sport']} | {b['bet_type']}**  
-        {b['bet_line']}  
-        Odds: {format_odds_display(b['odds'])}  
-        Risk: ${b['risk']}  
-        Profit: ${round(b['profit'],2)}
-        """)
+        col1, col2, col3 = st.columns([8,1,1])
 
-        if st.button("Edit", key=f"edit_{b['row']}"):
-            st.session_state.edit_row = b["row"]
+        with col1:
+            st.markdown(f"""
+            **{b['sport']} | {b['bet_type']}**  
+            {b['bet_line']}  
+            Odds: {format_odds_display(b['odds'])}  
+            Risk: ${b['risk']}  
+            Profit: ${round(b['profit'],2)}
+            """)
 
+        with col2:
+            if st.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.edit_row = b["row"]
+
+        with col3:
+            if st.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
+                st.session_state.bets = load_bets()
+                st.rerun()
+
+        # ===== EDIT FORM =====
         if st.session_state.edit_row == b["row"]:
             with st.form(f"edit_form_{b['row']}"):
 
                 new_wager = st.text_input("Wager", b["bet_line"])
+
                 risk = st.number_input("Risk ($)", value=b["risk"])
-                to_win = st.number_input("To Win ($)", value=calc_to_win(risk, safe_parse_odds(b["odds"])))
+                to_win = st.number_input(
+                    "To Win ($)",
+                    value=calc_to_win(risk, safe_parse_odds(b["odds"]))
+                )
+
                 odds_val = calc_odds(risk, to_win)
 
                 st.text_input("Odds", f"{odds_val:.2f}x", disabled=True)
@@ -193,15 +225,22 @@ with t3:
     st.metric("Total Profit", f"${round(total_profit,2)}")
 
     if bets:
-        dates = [b["date"] for b in bets]
-        running = []
+        sorted_bets = sorted(bets, key=lambda x: x["date"])
+
+        dates = []
+        running_total = []
         total = 0
 
-        for b in bets:
+        for b in sorted_bets:
             total += b["profit"]
-            running.append(total)
+            dates.append(b["date"])
+            running_total.append(total)
 
         fig, ax = plt.subplots()
-        ax.plot(dates, running)
+        ax.plot(dates, running_total)
         ax.axhline(0, linestyle="--")
+
+        ax.set_xticks(dates[::max(1, len(dates)//6)])
+        ax.set_xticklabels([f"{d.month}/{d.day}" for d in dates[::max(1, len(dates)//6)]])
+
         st.pyplot(fig)
