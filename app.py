@@ -16,6 +16,9 @@ sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 # ================= HELPERS =================
 
+def get_risk(b):
+    return float(b.get("risk", b.get("units", 0)))
+
 def safe_parse_odds(val):
     try:
         return float(str(val).lower().replace("x","").strip())
@@ -58,10 +61,7 @@ def load_bets():
 
     for i, r in enumerate(rows, start=2):
         odds = safe_parse_odds(r["odds"])
-
-        # ✅ FIX: supports old "units"
         risk = float(r.get("risk", r.get("units", 0)))
-
         result = str(r["result"]).lower().strip()
         profit = calc_profit(risk, odds, result)
 
@@ -86,7 +86,7 @@ def save_bet(bet):
         bet["bet_type"],
         bet["bet_line"],
         bet["odds"],
-        bet["risk"],   # still saves into same column
+        bet["risk"],
         bet["result"],
         bet["profit"]
     ])
@@ -121,6 +121,8 @@ with t1:
     st.subheader("Calendar Bets")
 
     for b in st.session_state.bets:
+        risk_val = get_risk(b)
+
         col1, col2, col3 = st.columns([8,1,1])
 
         with col1:
@@ -128,7 +130,7 @@ with t1:
             **{b['sport']} | {b['bet_type']}**  
             {b['bet_line']}  
             Odds: {format_odds_display(b['odds'])}  
-            Risk: ${b['risk']}  
+            Risk: ${risk_val}  
             Profit: ${round(b['profit'],2)}
             """)
 
@@ -142,17 +144,13 @@ with t1:
                 st.session_state.bets = load_bets()
                 st.rerun()
 
-        # ===== EDIT FORM =====
         if st.session_state.edit_row == b["row"]:
             with st.form(f"edit_form_{b['row']}"):
 
                 new_wager = st.text_input("Wager", b["bet_line"])
 
-                risk = st.number_input("Risk ($)", value=b["risk"])
-                to_win = st.number_input(
-                    "To Win ($)",
-                    value=calc_to_win(risk, safe_parse_odds(b["odds"]))
-                )
+                risk = st.number_input("Risk ($)", value=risk_val)
+                to_win = st.number_input("To Win ($)", value=calc_to_win(risk, safe_parse_odds(b["odds"])))
 
                 odds_val = calc_odds(risk, to_win)
 
@@ -218,7 +216,7 @@ with t2:
 with t3:
     bets = st.session_state.bets
 
-    total_risk = sum(b["risk"] for b in bets)
+    total_risk = sum(get_risk(b) for b in bets)
     total_profit = sum(b["profit"] for b in bets)
 
     st.metric("Total Risk", f"${round(total_risk,2)}")
