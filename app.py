@@ -66,7 +66,6 @@ def parse_date_safe(val):
         except:
             return None
 
-# ✅ ONLY NEW FUNCTION
 def result_badge(result):
     result = result.lower()
     colors = {
@@ -209,6 +208,38 @@ with t1:
                     st.session_state.bets = load_bets()
                     st.rerun()
 
+            # ✅ EDIT FORM FIXED
+            if st.session_state.edit_row == b["row"]:
+                with st.form(f"edit_form_{b['row']}"):
+                    new_wager = st.text_input("Wager", b["bet_line"])
+                    new_odds = st.text_input("Odds", b["odds"])
+                    new_units = st.number_input("Units", value=b["units"])
+                    new_result = st.selectbox(
+                        "Result",
+                        ["pending","win","loss","push"],
+                        index=["pending","win","loss","push"].index(b["result"])
+                    )
+
+                    if st.form_submit_button("Save"):
+                        parsed_odds = safe_parse_odds(new_odds)
+                        profit = calc_profit(new_units, parsed_odds, new_result)
+
+                        updated_bet = {
+                            "date": b["date"],
+                            "sport": b["sport"],
+                            "bet_type": b["bet_type"],
+                            "bet_line": new_wager,
+                            "odds": new_odds,
+                            "units": new_units,
+                            "result": new_result,
+                            "profit": profit
+                        }
+
+                        update_bet(b["row"], updated_bet)
+                        st.session_state.bets = load_bets()
+                        st.session_state.edit_row = None
+                        st.rerun()
+
 # ================= ADD BET =================
 with t2:
     with st.form("add"):
@@ -254,23 +285,13 @@ with t3:
     monthly = sum(b["profit"] for b in bets if b["date"] >= month_start)
     yearly = sum(b["profit"] for b in bets if b["date"] >= year_start)
 
-    def color(val):
-        return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
-
     c1, c2, c3, c4 = st.columns(4)
     for col, label, val in zip(
         [c1, c2, c3, c4],
         ["Day", "Week", "Month", "Year"],
         [daily, weekly, monthly, yearly]
     ):
-        col.markdown(f"""
-        <div style='background:#ffffff;padding:14px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);text-align:center;'>
-            <div style='font-size:14px;color:#6b7280'>{label}</div>
-            <div style='font-size:20px;font-weight:bold;color:{color(val)}'>
-                ${round(val,2)}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        col.metric(label, f"${round(val,2)}")
 
     total_bets = len(bets)
     wins = sum(1 for b in bets if b["profit"] > 0)
@@ -297,11 +318,10 @@ with t3:
             running_total.append(total)
 
         fig, ax = plt.subplots()
-        ax.plot(dates, running_total, linewidth=2.5)
+        ax.plot(dates, running_total)
+        ax.axhline(0, linestyle="--")
 
         ax.set_xticks(dates[::max(1, len(dates)//6)])
         ax.set_xticklabels([f"{d.month}/{d.day}" for d in dates[::max(1, len(dates)//6)]])
 
-        ax.axhline(0, linestyle="--", linewidth=1)
-        plt.tight_layout()
         st.pyplot(fig)
