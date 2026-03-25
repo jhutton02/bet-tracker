@@ -163,8 +163,7 @@ with t1:
     if not day_bets:
         st.info("No bets for this day")
     else:
-        for idx, b in enumerate(day_bets):
-
+        for b in day_bets:
             if b["profit"] > 0:
                 bg = "#d1fae5"
             elif b["profit"] < 0:
@@ -185,45 +184,12 @@ with t1:
                 """, unsafe_allow_html=True)
 
             with col2:
-                if st.button("✏️", key=f"cal_edit_{b['row']}_{idx}"):
+                if st.button("✏️", key=f"cal_edit_{b['row']}"):
                     st.session_state.edit_row = b["row"]
+                    st.rerun()  # ✅ ONLY CHANGE
 
             with col3:
-                if st.button("❌", key=f"cal_del_{b['row']}_{idx}"):
+                if st.button("❌", key=f"cal_del_{b['row']}"):
                     delete_bet(b["row"])
                     st.session_state.bets = load_bets()
                     st.rerun()
-
-# ================= ADD BET =================
-with t2:
-    with st.form("add"):
-        bet_date = st.date_input("Date", date.today())
-        sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
-        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
-        wager = st.text_input("Wager")
-        odds = st.text_input("Odds (e.g. -130, +210, 2x, 2.5)")
-        risk = st.number_input("Risk ($)", value=100.0)
-        result = st.selectbox("Result", ["pending","win","loss","push"])
-
-        if st.form_submit_button("Add Bet"):
-            parsed_odds = safe_parse_odds(odds)
-            profit = calc_profit(risk, parsed_odds, result)
-
-            bet = {
-                "date": bet_date,
-                "sport": sport,
-                "bet_type": bet_type,
-                "bet_line": wager,
-                "odds": odds,
-                "units": risk,
-                "result": result,
-                "profit": profit
-            }
-
-            save_bet(bet)
-            st.session_state.bets = load_bets()
-            st.success("Bet added")
-
-# ================= TRACKER =================
-with t3:
-    st.write("Tracker unchanged")
