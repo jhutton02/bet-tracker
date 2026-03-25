@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import calendar
 import gspread
 from google.oauth2.service_account import Credentials
@@ -57,6 +57,16 @@ def calc_profit(risk, odds, result):
         return risk * (100 / abs(odds))
     return 0
 
+# ✅ FIXED DATE PARSER
+def parse_date_safe(val):
+    try:
+        return datetime.strptime(str(val), "%Y-%m-%d").date()
+    except:
+        try:
+            return datetime.strptime(str(val), "%m/%d/%Y").date()
+        except:
+            return None
+
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
@@ -68,7 +78,7 @@ def load_bets():
 
         bets.append({
             "row": i,
-            "date": date.fromisoformat(str(r["date"])),
+            "date": parse_date_safe(r["date"]),
             "sport": r["sport"],
             "bet_type": r["bet_type"],
             "bet_line": r["bet_line"],
@@ -94,6 +104,7 @@ def update_bet(row, bet):
         bet["odds"], bet["units"], bet["result"], bet["profit"]
     ]])
 
+# ================= STATE =================
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
@@ -126,7 +137,7 @@ with t1:
     counts = {}
 
     for b in st.session_state.bets:
-        if b["date"].year == year and b["date"].month == month:
+        if b["date"] and b["date"].year == year and b["date"].month == month:
             d = b["date"]
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
@@ -164,18 +175,11 @@ with t1:
         st.info("No bets for this day")
     else:
         for b in day_bets:
-            if b["profit"] > 0:
-                bg = "#d1fae5"
-            elif b["profit"] < 0:
-                bg = "#fee2e2"
-            else:
-                bg = "#f1f5f9"
-
             col1, col2, col3 = st.columns([8,1,1])
 
             with col1:
                 st.markdown(f"""
-                <div style='background:{bg};padding:12px;border-radius:12px;margin-bottom:8px'>
+                <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
                 <b>{b['sport']} | {b['bet_type']}</b><br>
                 {b['bet_line']} | {b['result']}<br>
                 Odds: {format_odds_display(b['odds'])}<br>
@@ -183,15 +187,49 @@ with t1:
                 </div>
                 """, unsafe_allow_html=True)
 
+            # ✅ EDIT BUTTON
             with col2:
                 if st.button("✏️", key=f"cal_edit_{b['row']}"):
                     st.session_state.edit_row = b["row"]
 
+            # ✅ DELETE BUTTON
             with col3:
                 if st.button("❌", key=f"cal_del_{b['row']}"):
                     delete_bet(b["row"])
                     st.session_state.bets = load_bets()
                     st.rerun()
+
+            # ✅ EDIT FORM (NEW)
+            if st.session_state.edit_row == b["row"]:
+                with st.form(f"edit_form_{b['row']}"):
+                    new_wager = st.text_input("Wager", b["bet_line"])
+                    new_odds = st.text_input("Odds", b["odds"])
+                    new_units = st.number_input("Units", value=b["units"])
+                    new_result = st.selectbox(
+                        "Result",
+                        ["pending","win","loss","push"],
+                        index=["pending","win","loss","push"].index(b["result"])
+                    )
+
+                    if st.form_submit_button("Save"):
+                        parsed_odds = safe_parse_odds(new_odds)
+                        profit = calc_profit(new_units, parsed_odds, new_result)
+
+                        updated_bet = {
+                            "date": b["date"],
+                            "sport": b["sport"],
+                            "bet_type": b["bet_type"],
+                            "bet_line": new_wager,
+                            "odds": new_odds,
+                            "units": new_units,
+                            "result": new_result,
+                            "profit": profit
+                        }
+
+                        update_bet(b["row"], updated_bet)
+                        st.session_state.bets = load_bets()
+                        st.session_state.edit_row = None
+                        st.rerun()
 
 # ================= ADD BET =================
 with t2:
@@ -200,7 +238,7 @@ with t2:
         sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
         bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
         wager = st.text_input("Wager")
-        odds = st.text_input("Odds (e.g. -130, +210, 2x, 2.5)")
+        odds = st.text_input("Odds")
         risk = st.number_input("Risk ($)", value=100.0)
         result = st.selectbox("Result", ["pending","win","loss","push"])
 
@@ -222,88 +260,11 @@ with t2:
             save_bet(bet)
             st.session_state.bets = load_bets()
             st.success("Bet added")
+            st.rerun()
 
 # ================= TRACKER =================
 with t3:
-
     bets = st.session_state.bets
 
-    today = date.today()
-    week_start = today - timedelta(days=today.weekday())
-    month_start = today.replace(day=1)
-    year_start = today.replace(month=1, day=1)
-
-    daily = sum(b["profit"] for b in bets if b["date"] == today)
-    weekly = sum(b["profit"] for b in bets if b["date"] >= week_start)
-    monthly = sum(b["profit"] for b in bets if b["date"] >= month_start)
-    yearly = sum(b["profit"] for b in bets if b["date"] >= year_start)
-
-    def color(val):
-        return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
-
-    c1, c2, c3, c4 = st.columns(4)
-    for col, label, val in zip(
-        [c1, c2, c3, c4],
-        ["Day", "Week", "Month", "Year"],
-        [daily, weekly, monthly, yearly]
-    ):
-        col.markdown(f"""
-        <div style='background:#ffffff;padding:14px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);text-align:center;'>
-            <div style='font-size:14px;color:#6b7280'>{label}</div>
-            <div style='font-size:20px;font-weight:bold;color:{color(val)}'>
-                ${round(val,2)}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    total_bets = len(bets)
-    wins = sum(1 for b in bets if b["profit"] > 0)
-    total_risk = sum(b["units"] for b in bets)
     total_profit = sum(b["profit"] for b in bets)
-
-    win_pct = (wins / total_bets * 100) if total_bets else 0
-    roi = (total_profit / total_risk * 100) if total_risk else 0
-
-    m1, m2, m3 = st.columns(3)
-
-    m1.metric("Win %", f"{round(win_pct,1)}%")
-    m2.metric("ROI %", f"{round(roi,1)}%")
-    m3.metric("Total Bets", total_bets)
-
-    if bets:
-        sorted_bets = sorted(bets, key=lambda x: x["date"])
-        dates = []
-        running_total = []
-        total = 0
-
-        for b in sorted_bets:
-            total += b["profit"]
-            dates.append(b["date"])
-            running_total.append(total)
-
-        fig, ax = plt.subplots()
-
-        ax.plot(dates, running_total, linewidth=2.5)
-        ax.fill_between(dates, running_total, where=[v >= 0 for v in running_total], alpha=0.15)
-        ax.fill_between(dates, running_total, where=[v < 0 for v in running_total], alpha=0.15)
-
-        ax.axhline(0, linestyle="--", linewidth=1)
-        ax.set_title("Profit Over Time", fontsize=13, pad=10)
-        ax.set_ylabel("Total Profit ($)")
-        ax.set_xlabel("Date")
-
-        tick_dates = dates[::max(1, len(dates)//6)]
-        tick_labels = [f"{d.month}/{d.day}" for d in tick_dates]
-
-        ax.set_xticks(tick_dates)
-        ax.set_xticklabels(tick_labels)
-
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.grid(alpha=0.2)
-
-        plt.tight_layout()
-        st.pyplot(fig)
-
-    st.divider()
-
+    st.metric("Total Profit", f"${round(total_profit,2)}")
