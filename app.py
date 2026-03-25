@@ -34,10 +34,7 @@ def format_odds_display(val):
             return raw
         if raw.startswith("+") or raw.startswith("-"):
             return raw
-        num = float(raw)
-        if num >= 1:
-            return f"{num}x"
-        return raw
+        return f"{float(raw)}x"
     except:
         return val
 
@@ -75,7 +72,6 @@ def result_badge(result):
         "push": ("#64748b","white")
     }
     bg, color = colors.get(result, ("#64748b","white"))
-
     return f"<span style='background:{bg};color:{color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
 
 def load_bets():
@@ -182,62 +178,84 @@ with t1:
 
     day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
 
-    if not day_bets:
-        st.info("No bets for this day")
-    else:
-        for b in day_bets:
-            col1, col2, col3 = st.columns([8,1,1])
+    for b in day_bets:
+        col1, col2, col3 = st.columns([8,1,1])
 
-            with col1:
-                st.markdown(f"""
-                <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
-                <b>{b['sport']} | {b['bet_type']}</b><br>
-                {b['bet_line']} {result_badge(b['result'])}<br>
-                Odds: {format_odds_display(b['odds'])}<br>
-                <b>${round(b['profit'],2)}</b>
-                </div>
-                """, unsafe_allow_html=True)
+        with col1:
+            st.markdown(f"""
+            <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
+            <b>{b['sport']} | {b['bet_type']}</b><br>
+            {b['bet_line']} {result_badge(b['result'])}<br>
+            Odds: {format_odds_display(b['odds'])}<br>
+            <b>${round(b['profit'],2)}</b>
+            </div>
+            """, unsafe_allow_html=True)
 
-            with col2:
-                if st.button("✏️", key=f"cal_edit_{b['row']}"):
-                    st.session_state.edit_row = b["row"]
+        with col2:
+            if st.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.edit_row = b["row"]
 
-            with col3:
-                if st.button("❌", key=f"cal_del_{b['row']}"):
-                    delete_bet(b["row"])
+        with col3:
+            if st.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
+                st.session_state.bets = load_bets()
+                st.rerun()
+
+        if st.session_state.edit_row == b["row"]:
+            with st.form(f"edit_form_{b['row']}"):
+                new_wager = st.text_input("Wager", b["bet_line"])
+                new_odds = st.text_input("Odds", b["odds"])
+                new_units = st.number_input("Units", value=b["units"])
+                new_result = st.selectbox("Result", ["pending","win","loss","push"])
+
+                if st.form_submit_button("Save"):
+                    parsed_odds = safe_parse_odds(new_odds)
+                    profit = calc_profit(new_units, parsed_odds, new_result)
+
+                    update_bet(b["row"], {
+                        "date": b["date"],
+                        "sport": b["sport"],
+                        "bet_type": b["bet_type"],
+                        "bet_line": new_wager,
+                        "odds": new_odds,
+                        "units": new_units,
+                        "result": new_result,
+                        "profit": profit
+                    })
+
                     st.session_state.bets = load_bets()
+                    st.session_state.edit_row = None
                     st.rerun()
 
-            if st.session_state.edit_row == b["row"]:
-                with st.form(f"edit_form_{b['row']}"):
-                    new_wager = st.text_input("Wager", b["bet_line"])
-                    new_odds = st.text_input("Odds", b["odds"])
-                    new_units = st.number_input("Units", value=b["units"])
-                    new_result = st.selectbox(
-                        "Result",
-                        ["pending","win","loss","push"],
-                        index=["pending","win","loss","push"].index(b["result"])
-                    )
+# ================= ADD BET (RESTORED) =================
+with t2:
+    with st.form("add"):
+        bet_date = st.date_input("Date", date.today())
+        sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
+        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
+        wager = st.text_input("Wager")
+        odds = st.text_input("Odds")
+        risk = st.number_input("Risk ($)", value=100.0)
+        result = st.selectbox("Result", ["pending","win","loss","push"])
 
-                    if st.form_submit_button("Save"):
-                        parsed_odds = safe_parse_odds(new_odds)
-                        profit = calc_profit(new_units, parsed_odds, new_result)
+        if st.form_submit_button("Add Bet"):
+            parsed_odds = safe_parse_odds(odds)
+            profit = calc_profit(risk, parsed_odds, result)
 
-                        updated_bet = {
-                            "date": b["date"],
-                            "sport": b["sport"],
-                            "bet_type": b["bet_type"],
-                            "bet_line": new_wager,
-                            "odds": new_odds,
-                            "units": new_units,
-                            "result": new_result,
-                            "profit": profit
-                        }
+            save_bet({
+                "date": bet_date,
+                "sport": sport,
+                "bet_type": bet_type,
+                "bet_line": wager,
+                "odds": odds,
+                "units": risk,
+                "result": result,
+                "profit": profit
+            })
 
-                        update_bet(b["row"], updated_bet)
-                        st.session_state.bets = load_bets()
-                        st.session_state.edit_row = None
-                        st.rerun()
+            st.session_state.bets = load_bets()
+            st.success("Bet added")
+            st.rerun()
 
 # ================= TRACKER =================
 with t3:
@@ -270,36 +288,3 @@ with t3:
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-    total_bets = len(bets)
-    wins = sum(1 for b in bets if b["profit"] > 0)
-    total_risk = sum(b["units"] for b in bets)
-    total_profit = sum(b["profit"] for b in bets)
-
-    win_pct = (wins / total_bets * 100) if total_bets else 0
-    roi = (total_profit / total_risk * 100) if total_risk else 0
-
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Win %", f"{round(win_pct,1)}%")
-    m2.metric("ROI %", f"{round(roi,1)}%")
-    m3.metric("Total Bets", total_bets)
-
-    if bets:
-        sorted_bets = sorted(bets, key=lambda x: x["date"])
-        dates = []
-        running_total = []
-        total = 0
-
-        for b in sorted_bets:
-            total += b["profit"]
-            dates.append(b["date"])
-            running_total.append(total)
-
-        fig, ax = plt.subplots()
-        ax.plot(dates, running_total)
-        ax.axhline(0, linestyle="--")
-
-        ax.set_xticks(dates[::max(1, len(dates)//6)])
-        ax.set_xticklabels([f"{d.month}/{d.day}" for d in dates[::max(1, len(dates)//6)]])
-
-        st.pyplot(fig)
