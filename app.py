@@ -128,6 +128,12 @@ def save_bet(bet):
 def delete_bet(row):
     sheet.delete_rows(row)
 
+def update_bet(row, bet):
+    sheet.update(f"A{row}:H{row}", [[
+        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
+        bet["odds"], bet["risk"], bet["result"], bet["profit"]
+    ]])
+
 # ================= STATE =================
 
 if "bets" not in st.session_state:
@@ -136,11 +142,14 @@ if "bets" not in st.session_state:
 if "live_slips" not in st.session_state:
     st.session_state.live_slips = []
 
+if "edit_row" not in st.session_state:
+    st.session_state.edit_row = None
+
 # ================= TABS =================
 
 t1, t2, t3, t4 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker", "🔥 Live Tracker"])
 
-# ================= CALENDAR (RESTORED) =================
+# ================= CALENDAR =================
 
 with t1:
     today = date.today()
@@ -154,7 +163,12 @@ with t1:
 
     month = month_names.index(selected_month_name) + 1
 
+    # 🔥 DAY DROPDOWN (RESTORED)
     days_in_month = calendar.monthrange(year, month)[1]
+    day_options = [f"{month}/{d}" for d in range(1, days_in_month + 1)]
+    selected_label = st.selectbox("Select Day", day_options)
+    selected_day = int(selected_label.split("/")[1])
+    selected_date = date(year, month, selected_day)
 
     totals = {}
     counts = {}
@@ -188,6 +202,66 @@ with t1:
                 <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
             </div>
             """, unsafe_allow_html=True)
+
+    st.divider()
+    st.subheader(f"Bets for {selected_date}")
+
+    day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
+
+    for b in day_bets:
+        col1, col2, col3 = st.columns([8,1,1])
+
+        with col1:
+            st.markdown(f"""
+            <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
+            <b>{b['sport']} | {b['bet_type']}</b><br>
+            {b['bet_line']} {result_badge(b['result'])}<br>
+            Odds: {format_odds_display(b['odds'])}<br>
+            Risk: ${get_risk(b)}<br>
+            <b>${round(b['profit'],2)}</b>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            if st.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.edit_row = b["row"]
+
+        with col3:
+            if st.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
+                st.session_state.bets = load_bets()
+                st.rerun()
+
+        if st.session_state.edit_row == b["row"]:
+            with st.form(f"edit_form_{b['row']}"):
+
+                new_wager = st.text_input("Wager", b["bet_line"])
+
+                risk = st.number_input("Risk ($)", value=get_risk(b))
+                to_win = st.number_input("To Win ($)", value=calc_to_win(risk, safe_parse_odds(b["odds"])))
+                odds_val = calc_odds(risk, to_win)
+
+                st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
+
+                new_result = st.selectbox("Result", ["pending","win","loss","push"])
+
+                if st.form_submit_button("Save"):
+                    profit = calc_profit(risk, odds_val, new_result)
+
+                    update_bet(b["row"], {
+                        "date": b["date"],
+                        "sport": b["sport"],
+                        "bet_type": b["bet_type"],
+                        "bet_line": new_wager,
+                        "odds": f"{round(odds_val,2)}x",
+                        "risk": risk,
+                        "result": new_result,
+                        "profit": profit
+                    })
+
+                    st.session_state.bets = load_bets()
+                    st.session_state.edit_row = None
+                    st.rerun()
 
 # ================= ADD BET =================
 
