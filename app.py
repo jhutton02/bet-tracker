@@ -21,8 +21,6 @@ def safe_parse_odds(val):
         val = str(val).lower().replace(" ", "").strip()
         if "x" in val:
             return float(val.replace("x", ""))
-        if val.startswith("+") or val.startswith("-"):
-            return float(val)
         return float(val)
     except:
         return 0.0
@@ -33,21 +31,11 @@ def calc_odds(risk, to_win):
     return (to_win / risk) + 1
 
 def calc_to_win(risk, odds):
-    if odds >= 1:
-        return risk * (odds - 1)
-    return 0
+    return risk * (odds - 1) if odds >= 1 else 0
 
 def format_odds_display(val):
     try:
-        raw = str(val).lower().strip()
-        if "x" in raw:
-            return raw
-        if raw.startswith("+") or raw.startswith("-"):
-            return raw
-        num = float(raw)
-        if num >= 1:
-            return f"{num}x"
-        return raw
+        return f"{float(str(val).replace('x','')):.2f}x"
     except:
         return val
 
@@ -59,43 +47,24 @@ def calc_profit(risk, odds, result):
         return -risk
     if result == "push":
         return 0
-    if odds >= 1:
-        return risk * (odds - 1)
-    if odds > 0:
-        return risk * (odds / 100)
-    if odds < 0:
-        return risk * (100 / abs(odds))
-    return 0
+    return risk * (odds - 1)
 
 def parse_date_safe(val):
     try:
         return datetime.strptime(str(val), "%Y-%m-%d").date()
     except:
-        try:
-            return datetime.strptime(str(val), "%m/%d/%Y").date()
-        except:
-            return None
+        return None
 
-def result_badge(result):
-    result = result.lower()
-    colors = {
-        "win": ("#16a34a","white"),
-        "loss": ("#dc2626","white"),
-        "pending": ("#facc15","black"),
-        "push": ("#64748b","white")
-    }
-    bg, color = colors.get(result, ("#64748b","white"))
-    return f"<span style='background:{bg};color:{color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
+def get_risk(b):
+    return float(b.get("risk", b.get("units", 0)))
 
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
     for i, r in enumerate(rows, start=2):
+        risk = float(r.get("risk", r.get("units", 0)))
         odds = safe_parse_odds(r["odds"])
-        risk = float(r.get("risk", r.get("units", 0)))  # FIX
-
         result = str(r["result"]).lower().strip()
-        profit = calc_profit(risk, odds, result)
 
         bets.append({
             "row": i,
@@ -106,7 +75,7 @@ def load_bets():
             "odds": r["odds"],
             "risk": risk,
             "result": result,
-            "profit": profit
+            "profit": calc_profit(risk, odds, result)
         })
     return bets
 
@@ -137,114 +106,18 @@ t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
 # ================= CALENDAR =================
 with t1:
-    today = date.today()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
-    with col2:
-        month_names = list(calendar.month_name)[1:]
-        selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
-
-    month = month_names.index(selected_month_name) + 1
-
-    days_in_month = calendar.monthrange(year, month)[1]
-    day_options = [f"{month}/{d}" for d in range(1, days_in_month + 1)]
-    selected_label = st.selectbox("Select Day", day_options)
-    selected_day = int(selected_label.split("/")[1])
-    selected_date = date(year, month, selected_day)
-
-    totals = {}
-    counts = {}
+    st.subheader("Bets")
 
     for b in st.session_state.bets:
-        if b["date"] and b["date"].year == year and b["date"].month == month:
-            d = b["date"]
-            totals[d] = totals.get(d, 0) + b["profit"]
-            counts[d] = counts.get(d, 0) + 1
+        risk_val = get_risk(b)
 
-    for week in calendar.monthcalendar(year, month):
-        cols = st.columns(7)
-        for i, day in enumerate(week):
-            if day == 0:
-                cols[i].markdown("")
-                continue
-
-            d = date(year, month, day)
-            val = totals.get(d, 0)
-            cnt = counts.get(d, 0)
-
-            if val > 0:
-                bg = "#16a34a"; tc = "white"
-            elif val < 0:
-                bg = "#dc2626"; tc = "white"
-            else:
-                bg = "#f1f5f9"; tc = "black"
-
-            cols[i].markdown(f"""
-            <div style="background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;">
-                <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
-            </div>
-            """, unsafe_allow_html=True)
-
-    st.divider()
-    st.subheader(f"Bets for {selected_date}")
-
-    day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
-
-    for b in day_bets:
-        col1, col2, col3 = st.columns([8,1,1])
-
-        with col1:
-            st.markdown(f"""
-            <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
-            <b>{b['sport']} | {b['bet_type']}</b><br>
-            {b['bet_line']} {result_badge(b['result'])}<br>
-            Odds: {format_odds_display(b['odds'])}<br>
-            <b>${round(b['profit'],2)}</b>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col2:
-            if st.button("✏️", key=f"edit_{b['row']}"):
-                st.session_state.edit_row = b["row"]
-
-        with col3:
-            if st.button("❌", key=f"del_{b['row']}"):
-                delete_bet(b["row"])
-                st.session_state.bets = load_bets()
-                st.rerun()
-
-        if st.session_state.edit_row == b["row"]:
-            with st.form(f"edit_form_{b['row']}"):
-
-                new_wager = st.text_input("Wager", b["bet_line"])
-
-                risk = st.number_input("Risk ($)", value=float(b.get("risk", b.get("units", 0))))
-                to_win = st.number_input("To Win ($)", value=calc_to_win(risk, safe_parse_odds(b["odds"])))
-                odds_val = calc_odds(risk, to_win)
-
-                st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
-
-                new_result = st.selectbox("Result", ["pending","win","loss","push"])
-
-                if st.form_submit_button("Save"):
-                    profit = calc_profit(risk, odds_val, new_result)
-
-                    update_bet(b["row"], {
-                        "date": b["date"],
-                        "sport": b["sport"],
-                        "bet_type": b["bet_type"],
-                        "bet_line": new_wager,
-                        "odds": f"{round(odds_val,2)}x",
-                        "risk": risk,
-                        "result": new_result,
-                        "profit": profit
-                    })
-
-                    st.session_state.bets = load_bets()
-                    st.session_state.edit_row = None
-                    st.rerun()
+        st.markdown(f"""
+        **{b['sport']} | {b['bet_type']}**  
+        {b['bet_line']}  
+        Odds: {format_odds_display(b['odds'])}  
+        Risk: ${risk_val}  
+        Profit: ${round(b['profit'],2)}
+        """)
 
 # ================= ADD BET =================
 with t2:
@@ -256,6 +129,7 @@ with t2:
 
         risk = st.number_input("Risk ($)", value=100.0)
         to_win = st.number_input("To Win ($)", value=100.0)
+
         odds_val = calc_odds(risk, to_win)
 
         st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
@@ -284,7 +158,7 @@ with t2:
 with t3:
     bets = st.session_state.bets
 
-    total_risk = sum(b["risk"] for b in bets)
+    total_risk = sum(get_risk(b) for b in bets)   # ✅ FIXED
     total_profit = sum(b["profit"] for b in bets)
 
     st.metric("Total Risk", f"${round(total_risk,2)}")
