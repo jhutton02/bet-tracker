@@ -27,6 +27,16 @@ def safe_parse_odds(val):
     except:
         return 0.0
 
+def calc_odds(risk, to_win):
+    if risk == 0:
+        return 0
+    return (to_win / risk) + 1
+
+def calc_to_win(risk, odds):
+    if odds >= 1:
+        return risk * (odds - 1)
+    return 0
+
 def format_odds_display(val):
     try:
         raw = str(val).lower().strip()
@@ -82,7 +92,10 @@ def load_bets():
     bets = []
     for i, r in enumerate(rows, start=2):
         odds = safe_parse_odds(r["odds"])
-        risk = float(r["units"])
+
+        # ✅ support old "units"
+        risk = float(r.get("risk", r.get("units", 0)))
+
         result = str(r["result"]).lower().strip()
         profit = calc_profit(risk, odds, result)
 
@@ -93,7 +106,7 @@ def load_bets():
             "bet_type": r["bet_type"],
             "bet_line": r["bet_line"],
             "odds": r["odds"],
-            "units": risk,
+            "risk": risk,
             "result": result,
             "profit": profit
         })
@@ -102,7 +115,7 @@ def load_bets():
 def save_bet(bet):
     sheet.append_row([
         str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
-        bet["odds"], bet["units"], bet["result"], bet["profit"]
+        bet["odds"], bet["risk"], bet["result"], bet["profit"]
     ])
 
 def delete_bet(row):
@@ -111,7 +124,7 @@ def delete_bet(row):
 def update_bet(row, bet):
     sheet.update(f"A{row}:H{row}", [[
         str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
-        bet["odds"], bet["units"], bet["result"], bet["profit"]
+        bet["odds"], bet["risk"], bet["result"], bet["profit"]
     ]])
 
 # ================= STATE =================
@@ -207,21 +220,25 @@ with t1:
         if st.session_state.edit_row == b["row"]:
             with st.form(f"edit_form_{b['row']}"):
                 new_wager = st.text_input("Wager", b["bet_line"])
-                new_odds = st.text_input("Odds", b["odds"])
-                new_units = st.number_input("Units", value=b["units"])
+
+                risk = st.number_input("Risk ($)", value=b["risk"])
+                to_win = st.number_input("To Win ($)", value=calc_to_win(risk, safe_parse_odds(b["odds"])))
+                odds_val = calc_odds(risk, to_win)
+
+                st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
+
                 new_result = st.selectbox("Result", ["pending","win","loss","push"])
 
                 if st.form_submit_button("Save"):
-                    parsed_odds = safe_parse_odds(new_odds)
-                    profit = calc_profit(new_units, parsed_odds, new_result)
+                    profit = calc_profit(risk, odds_val, new_result)
 
                     update_bet(b["row"], {
                         "date": b["date"],
                         "sport": b["sport"],
                         "bet_type": b["bet_type"],
                         "bet_line": new_wager,
-                        "odds": new_odds,
-                        "units": new_units,
+                        "odds": f"{round(odds_val,2)}x",
+                        "risk": risk,
                         "result": new_result,
                         "profit": profit
                     })
@@ -237,21 +254,25 @@ with t2:
         sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
         bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
         wager = st.text_input("Wager")
-        odds = st.text_input("Odds")
+
         risk = st.number_input("Risk ($)", value=100.0)
+        to_win = st.number_input("To Win ($)", value=100.0)
+        odds_val = calc_odds(risk, to_win)
+
+        st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
+
         result = st.selectbox("Result", ["pending","win","loss","push"])
 
         if st.form_submit_button("Add Bet"):
-            parsed_odds = safe_parse_odds(odds)
-            profit = calc_profit(risk, parsed_odds, result)
+            profit = calc_profit(risk, odds_val, result)
 
             save_bet({
                 "date": bet_date,
                 "sport": sport,
                 "bet_type": bet_type,
                 "bet_line": wager,
-                "odds": odds,
-                "units": risk,
+                "odds": f"{round(odds_val,2)}x",
+                "risk": risk,
                 "result": result,
                 "profit": profit
             })
@@ -294,7 +315,7 @@ with t3:
 
     total_bets = len(bets)
     wins = sum(1 for b in bets if b["profit"] > 0)
-    total_risk = sum(b["units"] for b in bets)
+    total_risk = sum(b["risk"] for b in bets)
     total_profit = sum(b["profit"] for b in bets)
 
     win_pct = (wins / total_bets * 100) if total_bets else 0
