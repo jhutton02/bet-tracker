@@ -1,4 +1,107 @@
-# EVERYTHING ABOVE IS 100% UNCHANGED
+import streamlit as st
+from datetime import date, timedelta
+import calendar
+import gspread
+from google.oauth2.service_account import Credentials
+import matplotlib.pyplot as plt
+
+st.set_page_config(page_title="Bet Tracker", layout="centered")
+st.title("📊 Bet Tracker Pro")
+
+# ================= GOOGLE SHEETS =================
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPES)
+gc = gspread.authorize(creds)
+sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
+
+# ================= HELPERS =================
+
+def safe_parse_odds(val):
+    try:
+        val = str(val).lower().replace(" ", "").strip()
+        if "x" in val:
+            return float(val.replace("x", ""))
+        if val.startswith("+") or val.startswith("-"):
+            return float(val)
+        return float(val)
+    except:
+        return 0.0
+
+def format_odds_display(val):
+    try:
+        raw = str(val).lower().strip()
+        if "x" in raw:
+            return raw
+        if raw.startswith("+") or raw.startswith("-"):
+            return raw
+        num = float(raw)
+        if num >= 1:
+            return f"{num}x"
+        return raw
+    except:
+        return val
+
+def calc_profit(risk, odds, result):
+    result = str(result).lower().strip()
+    if result == "pending":
+        return 0
+    if result == "loss":
+        return -risk
+    if result == "push":
+        return 0
+    if odds >= 1:
+        return risk * (odds - 1)
+    if odds > 0:
+        return risk * (odds / 100)
+    if odds < 0:
+        return risk * (100 / abs(odds))
+    return 0
+
+def load_bets():
+    rows = sheet.get_all_records()
+    bets = []
+    for i, r in enumerate(rows, start=2):
+        odds = safe_parse_odds(r["odds"])
+        risk = float(r["units"])
+        result = str(r["result"]).lower().strip()
+        profit = calc_profit(risk, odds, result)
+
+        bets.append({
+            "row": i,
+            "date": date.fromisoformat(str(r["date"])),
+            "sport": r["sport"],
+            "bet_type": r["bet_type"],
+            "bet_line": r["bet_line"],
+            "odds": r["odds"],
+            "units": risk,
+            "result": result,
+            "profit": profit
+        })
+    return bets
+
+def save_bet(bet):
+    sheet.append_row([
+        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
+        bet["odds"], bet["units"], bet["result"], bet["profit"]
+    ])
+
+def delete_bet(row):
+    sheet.delete_rows(row)
+
+def update_bet(row, bet):
+    sheet.update(f"A{row}:H{row}", [[
+        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
+        bet["odds"], bet["units"], bet["result"], bet["profit"]
+    ]])
+
+if "bets" not in st.session_state:
+    st.session_state.bets = load_bets()
+
+if "edit_row" not in st.session_state:
+    st.session_state.edit_row = None
+
+# ================= TABS =================
+t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
 # ================= CALENDAR =================
 with t1:
@@ -60,7 +163,7 @@ with t1:
     if not day_bets:
         st.info("No bets for this day")
     else:
-        for idx, b in enumerate(day_bets):  # ✅ ONLY CHANGE (idx added)
+        for idx, b in enumerate(day_bets):
 
             if b["profit"] > 0:
                 bg = "#d1fae5"
@@ -82,11 +185,45 @@ with t1:
                 """, unsafe_allow_html=True)
 
             with col2:
-                if st.button("✏️", key=f"cal_edit_{b['row']}_{idx}"):  # ✅ FIX
+                if st.button("✏️", key=f"cal_edit_{b['row']}_{idx}"):
                     st.session_state.edit_row = b["row"]
 
             with col3:
-                if st.button("❌", key=f"cal_del_{b['row']}_{idx}"):  # ✅ FIX
+                if st.button("❌", key=f"cal_del_{b['row']}_{idx}"):
                     delete_bet(b["row"])
                     st.session_state.bets = load_bets()
                     st.rerun()
+
+# ================= ADD BET =================
+with t2:
+    with st.form("add"):
+        bet_date = st.date_input("Date", date.today())
+        sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
+        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
+        wager = st.text_input("Wager")
+        odds = st.text_input("Odds (e.g. -130, +210, 2x, 2.5)")
+        risk = st.number_input("Risk ($)", value=100.0)
+        result = st.selectbox("Result", ["pending","win","loss","push"])
+
+        if st.form_submit_button("Add Bet"):
+            parsed_odds = safe_parse_odds(odds)
+            profit = calc_profit(risk, parsed_odds, result)
+
+            bet = {
+                "date": bet_date,
+                "sport": sport,
+                "bet_type": bet_type,
+                "bet_line": wager,
+                "odds": odds,
+                "units": risk,
+                "result": result,
+                "profit": profit
+            }
+
+            save_bet(bet)
+            st.session_state.bets = load_bets()
+            st.success("Bet added")
+
+# ================= TRACKER =================
+with t3:
+    st.write("Tracker unchanged")
