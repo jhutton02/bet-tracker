@@ -163,7 +163,6 @@ with t1:
 
     month = month_names.index(selected_month_name) + 1
 
-    # 🔥 DAY DROPDOWN (RESTORED)
     days_in_month = calendar.monthrange(year, month)[1]
     day_options = [f"{month}/{d}" for d in range(1, days_in_month + 1)]
     selected_label = st.selectbox("Select Day", day_options)
@@ -302,26 +301,75 @@ with t2:
 with t3:
     bets = st.session_state.bets
 
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+
+    daily = sum(b["profit"] for b in bets if b["date"] == today)
+    weekly = sum(b["profit"] for b in bets if b["date"] and b["date"] >= week_start)
+    monthly = sum(b["profit"] for b in bets if b["date"] and b["date"] >= month_start)
+    yearly = sum(b["profit"] for b in bets if b["date"] and b["date"] >= year_start)
+
+    def color(val):
+        return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
+
+    def arrow(val):
+        return "▲" if val > 0 else "▼" if val < 0 else ""
+
+    c1, c2, c3, c4 = st.columns(4)
+    for col, label, val in zip(
+        [c1, c2, c3, c4],
+        ["Day", "Week", "Month", "Year"],
+        [daily, weekly, monthly, yearly]
+    ):
+        col.markdown(f"""
+        <div style='text-align:center;'>
+            <div style='font-size:14px;color:#6b7280'>{label}</div>
+            <div style='font-size:28px;font-weight:bold;color:{color(val)}'>
+                {arrow(val)} ${round(val,2)}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
     total_risk = sum(get_risk(b) for b in bets)
     total_profit = sum(b["profit"] for b in bets)
 
     st.metric("Total Risk", f"${round(total_risk,2)}")
     st.metric("Total Profit", f"${round(total_profit,2)}")
 
+    # 🔥 FIXED GRAPH
     if bets:
-        sorted_bets = sorted(bets, key=lambda x: x["date"])
-        dates = []
+        sorted_bets = sorted([b for b in bets if b["date"]], key=lambda x: x["date"])
+
+        daily_totals = {}
+        for b in sorted_bets:
+            d = b["date"]
+            daily_totals[d] = daily_totals.get(d, 0) + b["profit"]
+
+        dates = sorted(daily_totals.keys())
+
         running_total = []
         total = 0
-
-        for b in sorted_bets:
-            total += b["profit"]
-            dates.append(b["date"])
+        for d in dates:
+            total += daily_totals[d]
             running_total.append(total)
 
         fig, ax = plt.subplots()
         ax.plot(dates, running_total)
         ax.axhline(0, linestyle="--")
+
+        step = max(1, len(dates)//6)
+        ax.set_xticks(dates[::step])
+        ax.set_xticklabels([d.strftime("%m/%d") for d in dates[::step]])
+
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Profit")
+
+        plt.xticks(rotation=30)
+
         st.pyplot(fig)
 
 # ================= LIVE TRACKER =================
