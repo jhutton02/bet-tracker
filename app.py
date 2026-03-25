@@ -100,6 +100,10 @@ if "bets" not in st.session_state:
 if "edit_row" not in st.session_state:
     st.session_state.edit_row = None
 
+# ✅ ADD THIS (tab tracking)
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = 0
+
 # ================= TABS =================
 t1, t2, t3 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker"])
 
@@ -186,7 +190,8 @@ with t1:
             with col2:
                 if st.button("✏️", key=f"cal_edit_{b['row']}"):
                     st.session_state.edit_row = b["row"]
-                    st.rerun()  # ✅ ONLY CHANGE
+                    st.session_state.active_tab = 2
+                    st.rerun()
 
             with col3:
                 if st.button("❌", key=f"cal_del_{b['row']}"):
