@@ -34,7 +34,10 @@ def format_odds_display(val):
             return raw
         if raw.startswith("+") or raw.startswith("-"):
             return raw
-        return f"{float(raw)}x"
+        num = float(raw)
+        if num >= 1:
+            return f"{num}x"
+        return raw
     except:
         return val
 
@@ -227,7 +230,7 @@ with t1:
                     st.session_state.edit_row = None
                     st.rerun()
 
-# ================= ADD BET (RESTORED) =================
+# ================= ADD BET =================
 with t2:
     with st.form("add"):
         bet_date = st.date_input("Date", date.today())
@@ -288,3 +291,36 @@ with t3:
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    total_bets = len(bets)
+    wins = sum(1 for b in bets if b["profit"] > 0)
+    total_risk = sum(b["units"] for b in bets)
+    total_profit = sum(b["profit"] for b in bets)
+
+    win_pct = (wins / total_bets * 100) if total_bets else 0
+    roi = (total_profit / total_risk * 100) if total_risk else 0
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Win %", f"{round(win_pct,1)}%")
+    m2.metric("ROI %", f"{round(roi,1)}%")
+    m3.metric("Total Bets", total_bets)
+
+    if bets:
+        sorted_bets = sorted(bets, key=lambda x: x["date"])
+        dates = []
+        running_total = []
+        total = 0
+
+        for b in sorted_bets:
+            total += b["profit"]
+            dates.append(b["date"])
+            running_total.append(total)
+
+        fig, ax = plt.subplots()
+        ax.plot(dates, running_total)
+        ax.axhline(0, linestyle="--")
+
+        ax.set_xticks(dates[::max(1, len(dates)//6)])
+        ax.set_xticklabels([f"{d.month}/{d.day}" for d in dates[::max(1, len(dates)//6)]])
+
+        st.pyplot(fig)
