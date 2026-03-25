@@ -208,7 +208,6 @@ with t1:
                     st.session_state.bets = load_bets()
                     st.rerun()
 
-            # ✅ EDIT FORM FIXED
             if st.session_state.edit_row == b["row"]:
                 with st.form(f"edit_form_{b['row']}"):
                     new_wager = st.text_input("Wager", b["bet_line"])
@@ -240,37 +239,6 @@ with t1:
                         st.session_state.edit_row = None
                         st.rerun()
 
-# ================= ADD BET =================
-with t2:
-    with st.form("add"):
-        bet_date = st.date_input("Date", date.today())
-        sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
-        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
-        wager = st.text_input("Wager")
-        odds = st.text_input("Odds")
-        risk = st.number_input("Risk ($)", value=100.0)
-        result = st.selectbox("Result", ["pending","win","loss","push"])
-
-        if st.form_submit_button("Add Bet"):
-            parsed_odds = safe_parse_odds(odds)
-            profit = calc_profit(risk, parsed_odds, result)
-
-            bet = {
-                "date": bet_date,
-                "sport": sport,
-                "bet_type": bet_type,
-                "bet_line": wager,
-                "odds": odds,
-                "units": risk,
-                "result": result,
-                "profit": profit
-            }
-
-            save_bet(bet)
-            st.session_state.bets = load_bets()
-            st.success("Bet added")
-            st.rerun()
-
 # ================= TRACKER =================
 with t3:
     bets = st.session_state.bets
@@ -285,43 +253,20 @@ with t3:
     monthly = sum(b["profit"] for b in bets if b["date"] >= month_start)
     yearly = sum(b["profit"] for b in bets if b["date"] >= year_start)
 
+    def color(val):
+        return "#16a34a" if val > 0 else "#dc2626" if val < 0 else "#374151"
+
     c1, c2, c3, c4 = st.columns(4)
     for col, label, val in zip(
         [c1, c2, c3, c4],
         ["Day", "Week", "Month", "Year"],
         [daily, weekly, monthly, yearly]
     ):
-        col.metric(label, f"${round(val,2)}")
-
-    total_bets = len(bets)
-    wins = sum(1 for b in bets if b["profit"] > 0)
-    total_risk = sum(b["units"] for b in bets)
-    total_profit = sum(b["profit"] for b in bets)
-
-    win_pct = (wins / total_bets * 100) if total_bets else 0
-    roi = (total_profit / total_risk * 100) if total_risk else 0
-
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Win %", f"{round(win_pct,1)}%")
-    m2.metric("ROI %", f"{round(roi,1)}%")
-    m3.metric("Total Bets", total_bets)
-
-    if bets:
-        sorted_bets = sorted(bets, key=lambda x: x["date"])
-        dates = []
-        running_total = []
-        total = 0
-
-        for b in sorted_bets:
-            total += b["profit"]
-            dates.append(b["date"])
-            running_total.append(total)
-
-        fig, ax = plt.subplots()
-        ax.plot(dates, running_total)
-        ax.axhline(0, linestyle="--")
-
-        ax.set_xticks(dates[::max(1, len(dates)//6)])
-        ax.set_xticklabels([f"{d.month}/{d.day}" for d in dates[::max(1, len(dates)//6)]])
-
-        st.pyplot(fig)
+        col.markdown(f"""
+        <div style='background:#ffffff;padding:14px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);text-align:center;'>
+            <div style='font-size:14px;color:#6b7280'>{label}</div>
+            <div style='font-size:20px;font-weight:bold;color:{color(val)}'>
+                ${round(val,2)}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
