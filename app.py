@@ -39,23 +39,6 @@ def parse_date(val):
     except:
         return None
 
-# ================= LIVE =================
-
-def get_live_stat(player, stat):
-    base = random.randint(10, 40)
-    if stat == "Points":
-        return base
-    elif stat == "Rebounds":
-        return base // 2
-    elif stat == "Assists":
-        return base // 3
-    return base + base//2
-
-def progress_bar(current, line):
-    pct = min(current/line,1)
-    filled = int(pct*20)
-    return f"[{'█'*filled}{'░'*(20-filled)}] {int(pct*100)}%"
-
 # ================= DATA =================
 
 def load_bets():
@@ -86,20 +69,26 @@ def save_bet(b):
 def delete_bet(r):
     sheet.delete_rows(r)
 
+def update_bet(row, bet):
+    sheet.update(f"A{row}:H{row}", [[
+        str(bet["date"]), "", "", bet["bet_line"],
+        bet["odds"], bet["risk"], bet["result"], bet["profit"]
+    ]])
+
 # ================= STATE =================
 
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
-if "live_slips" not in st.session_state:
-    st.session_state.live_slips = []
-
 if "selected_day" not in st.session_state:
     st.session_state.selected_day = None
 
+if "edit_row" not in st.session_state:
+    st.session_state.edit_row = None
+
 # ================= TABS =================
 
-t1, t2, t3, t4 = st.tabs(["📅 Calendar","➕ Add Bet","📋 Tracker","🔥 Live Tracker"])
+t1, t2, t3 = st.tabs(["📅 Calendar","➕ Add Bet","📋 Tracker"])
 
 # ================= CALENDAR =================
 
@@ -123,7 +112,7 @@ with t1:
         cols=st.columns(7)
         for i,day in enumerate(week):
             if day==0:
-                cols[i].markdown("")
+                cols[i].write("")
                 continue
 
             d=date(year,m,day)
@@ -131,63 +120,74 @@ with t1:
             cnt=counts.get(d,0)
 
             if val>0:
-                border="#16a34a"; bg="#ecfdf5"; profit_color="#16a34a"
+                border="#16a34a"; bg="#ecfdf5"; color="#16a34a"
             elif val<0:
-                border="#dc2626"; bg="#fef2f2"; profit_color="#dc2626"
+                border="#dc2626"; bg="#fef2f2"; color="#dc2626"
             else:
-                border="#d1d5db"; bg="#f9fafb"; profit_color="#374151"
-
-            if cols[i].button("", key=f"d{day}", use_container_width=True):
-                st.session_state.selected_day=d
+                border="#d1d5db"; bg="#f9fafb"; color="#374151"
 
             cols[i].markdown(f"""
             <div style="
-                margin-top:-75px;
                 border:2px solid {border};
                 background:{bg};
-                border-radius:14px;
-                padding:10px;
-                height:110px;
-                display:flex;
-                flex-direction:column;
-                justify-content:space-between;
+                border-radius:12px;
+                padding:8px;
+                height:95px;
             ">
-                <div style="font-weight:600;font-size:14px;">
-                    {day}
-                </div>
-
-                <div style="font-size:18px;font-weight:700;color:{profit_color};">
-                    ${round(val,2)}
-                </div>
-
-                <div style="font-size:12px;color:#6b7280;">
-                    {cnt} bets
-                </div>
+                <div style="font-size:13px;font-weight:600;">{day}</div>
+                <div style="font-size:16px;font-weight:700;color:{color};">${round(val,2)}</div>
+                <div style="font-size:11px;color:#6b7280;">{cnt} bets</div>
             </div>
             """, unsafe_allow_html=True)
+
+            if cols[i].button("Select", key=f"d{day}"):
+                st.session_state.selected_day=d
 
     if st.session_state.selected_day:
         st.markdown(f"## Bets for {st.session_state.selected_day}")
 
         for b in st.session_state.bets:
             if b["date"]==st.session_state.selected_day:
-                c1,c2,c3=st.columns([8,1,1])
 
-                color="green" if b["profit"]>0 else "red" if b["profit"]<0 else "gray"
+                c1,c2,c3=st.columns([7,1,1])
 
                 c1.markdown(f"""
                 **{b['bet_line']}**  
                 Odds: {b['odds']}  
-                <span style='color:{color}'>${round(b['profit'],2)}</span>
-                """, unsafe_allow_html=True)
+                Profit: ${round(b['profit'],2)}
+                """)
 
-                if c2.button("✏️", key=f"e{b['row']}"):
-                    pass
+                if c2.button("✏️", key=f"edit{b['row']}"):
+                    st.session_state.edit_row=b["row"]
 
-                if c3.button("❌", key=f"x{b['row']}"):
+                if c3.button("❌", key=f"del{b['row']}"):
                     delete_bet(b["row"])
                     st.session_state.bets=load_bets()
                     st.rerun()
+
+                # 🔥 EDIT FORM FIXED
+                if st.session_state.edit_row == b["row"]:
+                    with st.form(f"form{b['row']}"):
+                        new_wager=st.text_input("Wager", b["bet_line"])
+                        risk=st.number_input("Risk", value=b["risk"])
+                        result=st.selectbox("Result", ["pending","win","loss"])
+
+                        if st.form_submit_button("Save"):
+                            odds=safe_parse_odds(b["odds"])
+                            profit=calc_profit(risk,odds,result)
+
+                            update_bet(b["row"],{
+                                "date":b["date"],
+                                "bet_line":new_wager,
+                                "odds":b["odds"],
+                                "risk":risk,
+                                "result":result,
+                                "profit":profit
+                            })
+
+                            st.session_state.edit_row=None
+                            st.session_state.bets=load_bets()
+                            st.rerun()
 
 # ================= ADD =================
 
@@ -203,7 +203,7 @@ with t2:
 
         result=st.selectbox("Result",["pending","win","loss"])
 
-        if st.form_submit_button("Add Bet"):
+        if st.form_submit_button("Add"):
             save_bet({
                 "date":d,
                 "bet_line":wager,
@@ -226,42 +226,7 @@ with t3:
     m=sum(b["profit"] for b in bets if b["date"]>=today.replace(day=1))
     y=sum(b["profit"] for b in bets if b["date"]>=today.replace(month=1,day=1))
 
-    def c(v): return "green" if v>0 else "red" if v<0 else "gray"
-
-    c1,c2,c3,c4=st.columns(4)
-    for col,val,name in zip([c1,c2,c3,c4],[d,w,m,y],["Day","Week","Month","Year"]):
-        col.markdown(f"<h3 style='color:{c(val)}'>{name}<br>${round(val,2)}</h3>",unsafe_allow_html=True)
-
-    if bets:
-        sorted_bets=sorted([b for b in bets if b["date"]],key=lambda x:x["date"])
-        dates=[]
-        running=[]
-        total=0
-
-        for b in sorted_bets:
-            total+=b["profit"]
-            dates.append(b["date"])
-            running.append(total)
-
-        fig,ax=plt.subplots()
-        ax.plot(dates,running)
-        ax.axhline(0,linestyle="--")
-        plt.xticks(rotation=30)
-        st.pyplot(fig)
-
-# ================= LIVE =================
-
-with t4:
-    with st.form("live"):
-        p=st.text_input("Player")
-        s=st.selectbox("Stat",["PRA","Points","Rebounds","Assists"])
-        l=st.number_input("Line",value=30.0)
-
-        if st.form_submit_button("Add"):
-            st.session_state.live_slips.append({"p":p,"s":s,"l":l})
-
-    for x in st.session_state.live_slips:
-        cur=get_live_stat(x["p"],x["s"])
-        st.write(f"{x['p']} {x['s']} {x['l']}")
-        st.write(cur)
-        st.write(progress_bar(cur,x["l"]))
+    st.write("Day:", d)
+    st.write("Week:", w)
+    st.write("Month:", m)
+    st.write("Year:", y)
