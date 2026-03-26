@@ -19,251 +19,237 @@ sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 def safe_parse_odds(val):
     try:
-        val = str(val).lower().replace(" ", "").strip()
-        if "x" in val:
-            return float(val.replace("x", ""))
-        return float(val)
+        return float(str(val).replace("x",""))
     except:
-        return 0.0
+        return 0
 
 def calc_odds(risk, to_win):
     return (to_win / risk) + 1 if risk != 0 else 0
 
 def calc_to_win(risk, odds):
-    return risk * (odds - 1) if odds >= 1 else 0
-
-def calc_profit(risk, odds, result):
-    result = str(result).lower().strip()
-    if result == "pending":
-        return 0
-    if result == "loss":
-        return -risk
-    if result == "push":
-        return 0
     return risk * (odds - 1)
 
-def parse_date_safe(val):
+def calc_profit(risk, odds, result):
+    if result == "win":
+        return risk * (odds - 1)
+    elif result == "loss":
+        return -risk
+    return 0
+
+def parse_date(val):
     try:
         return datetime.strptime(str(val), "%Y-%m-%d").date()
     except:
         return None
 
-def get_risk(b):
-    return float(b.get("risk", b.get("units", 0)))
-
-def format_odds_display(val):
-    try:
-        return f"{float(str(val).replace('x','')):.2f}x"
-    except:
-        return val
-
-def result_badge(result):
-    result = result.lower()
-    colors = {
-        "win": ("#16a34a","white"),
-        "loss": ("#dc2626","white"),
-        "pending": ("#facc15","black"),
-        "push": ("#64748b","white")
-    }
-    bg, color = colors.get(result, ("#64748b","white"))
-    return f"<span style='background:{bg};color:{color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
-
-# ================= LIVE API =================
-
-def get_player_points(player_name):
-    try:
-        url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
-        res = requests.get(url).json()
-        if not res["data"]:
-            return 0
-        player_id = res["data"][0]["id"]
-
-        stats_url = f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player_id}&per_page=1"
-        stats = requests.get(stats_url).json()
-
-        if not stats["data"]:
-            return 0
-
-        game = stats["data"][0]
-        return game["pts"] + game["reb"] + game["ast"]
-    except:
-        return 0
-
-def progress_bar(current, line):
-    pct = min(current / line, 1.0) if line > 0 else 0
-    filled = int(pct * 20)
-    bar = "█" * filled + "░" * (20 - filled)
-    return f"[{bar}] {int(pct*100)}%"
-
 # ================= DATA =================
 
 def load_bets():
     rows = sheet.get_all_records()
-    bets = []
-    for i, r in enumerate(rows, start=2):
-        risk = float(r.get("risk", r.get("units", 0)))
-        odds = safe_parse_odds(r["odds"])
-        result = str(r["result"]).lower().strip()
-        profit = calc_profit(risk, odds, result)
+    bets=[]
+    for i,r in enumerate(rows,start=2):
+        risk=float(r.get("risk",0))
+        odds=safe_parse_odds(r["odds"])
+        result=r["result"]
 
         bets.append({
-            "row": i,
-            "date": parse_date_safe(r["date"]),
-            "sport": r["sport"],
-            "bet_type": r["bet_type"],
-            "bet_line": r["bet_line"],
-            "odds": r["odds"],
-            "risk": risk,
-            "result": result,
-            "profit": profit
+            "row":i,
+            "date":parse_date(r["date"]),
+            "bet_line":r["bet_line"],
+            "odds":r["odds"],
+            "risk":risk,
+            "result":result,
+            "profit":calc_profit(risk,odds,result)
         })
     return bets
 
-def save_bet(bet):
-    sheet.append_row([
-        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
-        bet["odds"], bet["risk"], bet["result"], bet["profit"]
-    ])
-
-def delete_bet(row):
-    sheet.delete_rows(row)
-
-# 🔥 FIXED UPDATE FUNCTION (THIS WAS THE ISSUE)
 def update_bet(row, bet):
     odds_val = safe_parse_odds(bet["odds"])
     profit = calc_profit(bet["risk"], odds_val, bet["result"])
 
     sheet.update(f"A{row}:H{row}", [[
-        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
+        str(bet["date"]), "", "", bet["bet_line"],
         bet["odds"], bet["risk"], bet["result"], profit
     ]])
+
+def save_bet(b):
+    odds_val = safe_parse_odds(b["odds"])
+    profit = calc_profit(b["risk"], odds_val, b["result"])
+
+    sheet.append_row([
+        str(b["date"]), "", "", b["bet_line"],
+        b["odds"], b["risk"], b["result"], profit
+    ])
+
+def delete_bet(r):
+    sheet.delete_rows(r)
+
+# ================= LIVE =================
+
+def get_player_points(name):
+    try:
+        url=f"https://www.balldontlie.io/api/v1/players?search={name}"
+        res=requests.get(url).json()
+        if not res["data"]:
+            return 0
+        pid=res["data"][0]["id"]
+
+        stats=requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={pid}&per_page=1").json()
+        if not stats["data"]:
+            return 0
+
+        g=stats["data"][0]
+        return g["pts"]+g["reb"]+g["ast"]
+    except:
+        return 0
 
 # ================= STATE =================
 
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
-if "live_slips" not in st.session_state:
-    st.session_state.live_slips = []
+if "selected_day" not in st.session_state:
+    st.session_state.selected_day = date.today()
 
 if "edit_row" not in st.session_state:
     st.session_state.edit_row = None
 
+if "live" not in st.session_state:
+    st.session_state.live = []
+
 # ================= TABS =================
 
-t1, t2, t3, t4 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker", "🔥 Live Tracker"])
+t1, t2, t3, t4 = st.tabs(["📅 Calendar","➕ Add Bet","📋 Tracker","🔥 Live Tracker"])
 
 # ================= CALENDAR =================
 
 with t1:
-    today = date.today()
+    today=date.today()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
-    with col2:
-        month_names = list(calendar.month_name)[1:]
-        selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
+    year=st.selectbox("Year",[today.year])
+    month=st.selectbox("Month",list(calendar.month_name)[1:],index=today.month-1)
+    m=list(calendar.month_name).index(month)
 
-    month = month_names.index(selected_month_name) + 1
-
-    days_in_month = calendar.monthrange(year, month)[1]
-    day_options = [f"{month}/{d}" for d in range(1, days_in_month + 1)]
-    selected_label = st.selectbox("Select Day", day_options)
-    selected_day = int(selected_label.split("/")[1])
-    selected_date = date(year, month, selected_day)
-
-    totals = {}
-    counts = {}
+    totals={}
+    counts={}
 
     for b in st.session_state.bets:
-        if b["date"] and b["date"].year == year and b["date"].month == month:
-            d = b["date"]
-            totals[d] = totals.get(d, 0) + b["profit"]
-            counts[d] = counts.get(d, 0) + 1
+        if b["date"] and b["date"].year==year and b["date"].month==m:
+            d=b["date"]
+            totals[d]=totals.get(d,0)+b["profit"]
+            counts[d]=counts.get(d,0)+1
 
-    for week in calendar.monthcalendar(year, month):
-        cols = st.columns(7)
-        for i, day in enumerate(week):
-            if day == 0:
-                cols[i].markdown("")
+    for week in calendar.monthcalendar(year,m):
+        cols=st.columns(7)
+        for i,day in enumerate(week):
+            if day==0:
                 continue
 
-            d = date(year, month, day)
-            val = totals.get(d, 0)
-            cnt = counts.get(d, 0)
+            d=date(year,m,day)
+            val=totals.get(d,0)
+            cnt=counts.get(d,0)
 
-            if val > 0:
-                bg = "#16a34a"; tc = "white"
-            elif val < 0:
-                bg = "#dc2626"; tc = "white"
-            else:
-                bg = "#f1f5f9"; tc = "black"
+            color="green" if val>0 else "red" if val<0 else "gray"
 
-            cols[i].markdown(f"""
-            <div style="background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;">
-                <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
-            </div>
-            """, unsafe_allow_html=True)
+            if cols[i].button(f"{day}\n${round(val,2)}\n{cnt} bets", key=f"day{day}"):
+                st.session_state.selected_day=d
 
-    st.divider()
-    st.subheader(f"Bets for {selected_date}")
+    st.subheader(f"Bets for {st.session_state.selected_day}")
 
-    day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
+    for b in st.session_state.bets:
+        if b["date"]==st.session_state.selected_day:
 
-    for b in day_bets:
-        col1, col2, col3 = st.columns([8,1,1])
+            c1,c2,c3=st.columns([6,1,1])
 
-        with col1:
-            st.markdown(f"""
-            <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
-            <b>{b['sport']} | {b['bet_type']}</b><br>
-            {b['bet_line']} {result_badge(b['result'])}<br>
-            Odds: {format_odds_display(b['odds'])}<br>
-            Risk: ${get_risk(b)}<br>
-            <b>${round(b['profit'],2)}</b>
-            </div>
-            """, unsafe_allow_html=True)
+            c1.write(f"{b['bet_line']} | {b['odds']} | ${b['profit']}")
 
-        with col2:
-            if st.button("✏️", key=f"edit_{b['row']}"):
-                st.session_state.edit_row = b["row"]
+            if c2.button("✏️", key=f"edit{b['row']}"):
+                st.session_state.edit_row=b["row"]
 
-        with col3:
-            if st.button("❌", key=f"del_{b['row']}"):
+            if c3.button("❌", key=f"del{b['row']}"):
                 delete_bet(b["row"])
-                st.session_state.bets = load_bets()
+                st.session_state.bets=load_bets()
                 st.rerun()
 
-        if st.session_state.edit_row == b["row"]:
-            with st.form(f"edit_form_{b['row']}"):
+            if st.session_state.edit_row==b["row"]:
+                with st.form(f"edit{b['row']}"):
 
-                new_wager = st.text_input("Wager", b["bet_line"])
+                    wager=st.text_input("Wager",b["bet_line"])
+                    risk=st.number_input("Risk",value=b["risk"])
 
-                risk = st.number_input("Risk ($)", value=get_risk(b))
-                original_odds = safe_parse_odds(b["odds"])
-                to_win = st.number_input("To Win ($)", value=calc_to_win(risk, original_odds))
-                odds_val = calc_odds(risk, to_win)
+                    odds=safe_parse_odds(b["odds"])
+                    to_win=st.number_input("To Win",value=calc_to_win(risk,odds))
 
-                st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
+                    new_odds=calc_odds(risk,to_win)
+                    st.write(f"Odds: {round(new_odds,2)}x")
 
-                new_result = st.selectbox(
-                    "Result",
-                    ["pending","win","loss","push"],
-                    index=["pending","win","loss","push"].index(b["result"])
-                )
+                    result=st.selectbox("Result",["pending","win","loss"])
 
-                if st.form_submit_button("Save"):
-                    update_bet(b["row"], {
-                        "date": b["date"],
-                        "sport": b["sport"],
-                        "bet_type": b["bet_type"],
-                        "bet_line": new_wager,
-                        "odds": f"{round(odds_val,2)}x",
-                        "risk": risk,
-                        "result": new_result
-                    })
+                    if st.form_submit_button("Save"):
+                        update_bet(b["row"],{
+                            "date":b["date"],
+                            "bet_line":wager,
+                            "odds":f"{round(new_odds,2)}x",
+                            "risk":risk,
+                            "result":result
+                        })
+                        st.session_state.bets=load_bets()
+                        st.session_state.edit_row=None
+                        st.rerun()
 
-                    st.session_state.bets = load_bets()
-                    st.session_state.edit_row = None
-                    st.rerun()
+# ================= ADD =================
+
+with t2:
+    with st.form("add"):
+        d=st.date_input("Date")
+        wager=st.text_input("Wager")
+        risk=st.number_input("Risk",value=100.0)
+        to_win=st.number_input("To Win",value=100.0)
+
+        odds=calc_odds(risk,to_win)
+        st.write(f"Odds: {round(odds,2)}x")
+
+        result=st.selectbox("Result",["pending","win","loss"])
+
+        if st.form_submit_button("Add"):
+            save_bet({
+                "date":d,
+                "bet_line":wager,
+                "odds":f"{round(odds,2)}x",
+                "risk":risk,
+                "result":result
+            })
+            st.session_state.bets=load_bets()
+            st.rerun()
+
+# ================= TRACKER =================
+
+with t3:
+    bets=st.session_state.bets
+    today=date.today()
+
+    d=sum(b["profit"] for b in bets if b["date"]==today)
+    w=sum(b["profit"] for b in bets if b["date"]>=today-timedelta(days=7))
+    m=sum(b["profit"] for b in bets if b["date"]>=today.replace(day=1))
+    y=sum(b["profit"] for b in bets if b["date"]>=today.replace(month=1,day=1))
+
+    st.write("Daily:",d)
+    st.write("Weekly:",w)
+    st.write("Monthly:",m)
+    st.write("Yearly:",y)
+
+# ================= LIVE =================
+
+with t4:
+    with st.form("live"):
+        name=st.text_input("Player")
+        line=st.number_input("Line",value=25.0)
+
+        if st.form_submit_button("Add"):
+            st.session_state.live.append({"name":name,"line":line})
+
+    for l in st.session_state.live:
+        cur=get_player_points(l["name"])
+        pct=min(cur/l["line"],1)
+
+        st.write(f"{l['name']} {cur}/{l['line']} ({int(pct*100)}%)")
