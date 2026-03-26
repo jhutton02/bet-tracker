@@ -57,17 +57,6 @@ def format_odds_display(val):
     except:
         return val
 
-def result_badge(result):
-    result = result.lower()
-    colors = {
-        "win": ("#16a34a","white"),
-        "loss": ("#dc2626","white"),
-        "pending": ("#facc15","black"),
-        "push": ("#64748b","white")
-    }
-    bg, color = colors.get(result, ("#64748b","white"))
-    return f"<span style='background:{bg};color:{color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
-
 # ================= LIVE API =================
 
 def get_player_points(player_name):
@@ -125,15 +114,6 @@ def save_bet(bet):
         bet["odds"], bet["risk"], bet["result"], bet["profit"]
     ])
 
-def delete_bet(row):
-    sheet.delete_rows(row)
-
-def update_bet(row, bet):
-    sheet.update(f"A{row}:H{row}", [[
-        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
-        bet["odds"], bet["risk"], bet["result"], bet["profit"]
-    ]])
-
 # ================= STATE =================
 
 if "bets" not in st.session_state:
@@ -141,9 +121,6 @@ if "bets" not in st.session_state:
 
 if "live_slips" not in st.session_state:
     st.session_state.live_slips = []
-
-if "edit_row" not in st.session_state:
-    st.session_state.edit_row = None
 
 # ================= TABS =================
 
@@ -154,14 +131,8 @@ t1, t2, t3, t4 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker", "🔥 
 with t1:
     today = date.today()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
-    with col2:
-        month_names = list(calendar.month_name)[1:]
-        selected_month_name = st.selectbox("Month", month_names, index=today.month - 1)
-
-    month = month_names.index(selected_month_name) + 1
+    year = today.year
+    month = today.month
 
     totals = {}
     counts = {}
@@ -172,20 +143,16 @@ with t1:
             totals[d] = totals.get(d, 0) + b["profit"]
             counts[d] = counts.get(d, 0) + 1
 
-    st.markdown("""
-    <div style="background:#f8fafc;padding:20px;border-radius:12px;
-                box-shadow:0 8px 20px rgba(0,0,0,0.08);">
-    """, unsafe_allow_html=True)
+    st.markdown("<div style='background:#f8fafc;padding:20px;border-radius:12px;'>", unsafe_allow_html=True)
 
     days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
     for i, d in enumerate(days):
-        cols[i].markdown(f"<div style='text-align:center;font-size:12px;color:#6b7280;font-weight:600'>{d}</div>", unsafe_allow_html=True)
+        cols[i].markdown(f"<div style='text-align:center;font-size:12px;font-weight:600'>{d}</div>", unsafe_allow_html=True)
 
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
         for i, day in enumerate(week):
-
             if day == 0:
                 cols[i].markdown("<div style='height:90px;border:1px solid #e5e7eb;'></div>", unsafe_allow_html=True)
                 continue
@@ -194,17 +161,12 @@ with t1:
             val = totals.get(d, 0)
             cnt = counts.get(d, 0)
 
-            if val > 0:
-                bg = "#dcfce7"
-            elif val < 0:
-                bg = "#fee2e2"
-            else:
-                bg = "#ffffff"
+            bg = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#ffffff"
 
             cols[i].markdown(f"""
             <div style="height:90px;border:1px solid #e5e7eb;padding:8px;background:{bg};
                         display:flex;flex-direction:column;justify-content:space-between;">
-                <div style="font-weight:600;">{day}</div>
+                <div><b>{day}</b></div>
                 <div style="font-size:12px;color:#6b7280;">
                     ${round(val,2)}<br>{cnt} bets
                 </div>
@@ -212,25 +174,6 @@ with t1:
             """, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-    st.divider()
-
-    selected_date = st.date_input("Select Day", date(year, month, 1))
-
-    st.subheader(f"Bets for {selected_date}")
-
-    day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
-
-    for b in day_bets:
-        st.markdown(f"""
-        <div style='background:#f1f5f9;padding:12px;border-radius:10px;margin-bottom:8px'>
-        <b>{b['sport']} | {b['bet_type']}</b><br>
-        {b['bet_line']} {result_badge(b['result'])}<br>
-        Odds: {format_odds_display(b['odds'])}<br>
-        Risk: ${get_risk(b)}<br>
-        <b>${round(b['profit'],2)}</b>
-        </div>
-        """, unsafe_allow_html=True)
 
 # ================= ADD BET =================
 
@@ -271,10 +214,57 @@ with t2:
 with t3:
     bets = st.session_state.bets
 
-    total_profit = sum(b["profit"] for b in bets)
-    st.metric("Total Profit", f"${round(total_profit,2)}")
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+
+    daily = sum(b["profit"] for b in bets if b["date"] == today)
+    weekly = sum(b["profit"] for b in bets if b["date"] and b["date"] >= week_start)
+    monthly = sum(b["profit"] for b in bets if b["date"] and b["date"] >= month_start)
+
+    st.metric("Day", daily)
+    st.metric("Week", weekly)
+    st.metric("Month", monthly)
+
+    # Graph
+    sorted_bets = sorted([b for b in bets if b["date"]], key=lambda x: x["date"])
+    dates = [b["date"] for b in sorted_bets]
+    profits = [b["profit"] for b in sorted_bets]
+
+    running = []
+    total = 0
+    for p in profits:
+        total += p
+        running.append(total)
+
+    fig, ax = plt.subplots()
+    ax.plot(dates, running)
+    ax.axhline(0, linestyle="--")
+    st.pyplot(fig)
 
 # ================= LIVE TRACKER =================
 
 with t4:
     st.subheader("Live Bet Tracker")
+
+    with st.form("live_form"):
+        player = st.text_input("Player Name")
+        bet_type = st.selectbox("Bet Type", ["Points","Rebounds","Assists","PRA"])
+        line = st.number_input("Line", value=30.0)
+
+        if st.form_submit_button("Add"):
+            st.session_state.live_slips.append({
+                "player": player,
+                "line": line,
+                "bet_type": bet_type
+            })
+
+    for slip in st.session_state.live_slips:
+        current = get_player_points(slip["player"])
+        bar = progress_bar(current, slip["line"])
+
+        st.markdown(f"""
+        **{slip['player']} ({slip['bet_type']} - Line: {slip['line']})**  
+        Current: {current}  
+        {bar}
+        """)
