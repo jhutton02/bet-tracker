@@ -122,18 +122,59 @@ with t1:
     for week in calendar.monthcalendar(year,m):
         cols=st.columns(7)
         for i,day in enumerate(week):
-            if day==0: continue
+            if day==0: 
+                cols[i].markdown("")
+                continue
 
             d=date(year,m,day)
             val=totals.get(d,0)
             cnt=counts.get(d,0)
 
-            if val>0: bg="#16a34a";tc="white"
-            elif val<0: bg="#dc2626";tc="white"
-            else: bg="#e5e7eb";tc="black"
+            # 🎨 COLORS
+            if val>0:
+                border="#16a34a"
+                bg="#ecfdf5"
+                profit_color="#16a34a"
+            elif val<0:
+                border="#dc2626"
+                bg="#fef2f2"
+                profit_color="#dc2626"
+            else:
+                border="#d1d5db"
+                bg="#f9fafb"
+                profit_color="#374151"
 
-            if cols[i].button(f"{day}\n${round(val,2)}\n{cnt}", key=f"d{day}"):
+            # 🧱 CLEAN CARD DESIGN
+            if cols[i].button("", key=f"d{day}", use_container_width=True):
                 st.session_state.selected_day=d
+
+            cols[i].markdown(f"""
+            <div style="
+                margin-top:-75px;
+                border:2px solid {border};
+                background:{bg};
+                border-radius:14px;
+                padding:10px;
+                height:110px;
+                display:flex;
+                flex-direction:column;
+                justify-content:space-between;
+            ">
+                <div style="font-weight:600;font-size:14px;">
+                    {day}
+                </div>
+
+                <div style="font-size:18px;font-weight:700;color:{profit_color};">
+                    ${round(val,2)}
+                </div>
+
+                <div style="font-size:12px;color:#6b7280;">
+                    {cnt} bets
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ================= SELECTED DAY =================
 
     if st.session_state.selected_day:
         st.markdown(f"## Bets for {st.session_state.selected_day}")
@@ -157,6 +198,7 @@ with t1:
                     delete_bet(b["row"])
                     st.session_state.bets=load_bets()
                     st.rerun()
+
 
 # ================= ADD =================
 
