@@ -4,7 +4,6 @@ import calendar
 import gspread
 from google.oauth2.service_account import Credentials
 import matplotlib.pyplot as plt
-import requests
 
 st.set_page_config(page_title="Bet Tracker", layout="centered")
 st.title("📊 Bet Tracker Pro")
@@ -20,12 +19,7 @@ def safe_parse_odds(val):
     try:
         return float(str(val).replace("x",""))
     except:
-        return 1.0   # 🔥 NEVER RETURN 0 AGAIN
-
-def calc_odds(risk, to_win):
-    if risk == 0:
         return 1.0
-    return (to_win / risk) + 1
 
 def calc_profit(risk, odds, result):
     if result == "win":
@@ -40,23 +34,23 @@ def parse_date(val):
     except:
         return None
 
-# ================= DATA =================
+# ================= LOAD =================
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
 
     for i, r in enumerate(rows, start=2):
         risk = float(r.get("risk", 0))
-        odds_val = safe_parse_odds(r.get("odds", 1))
-        result = str(r.get("result", "pending")).lower()
+        odds = safe_parse_odds(r.get("odds", 1))
+        result = str(r.get("result", "pending")).lower().strip()
 
-        profit = calc_profit(risk, odds_val, result)
+        profit = calc_profit(risk, odds, result)
 
         bets.append({
             "row": i,
             "date": parse_date(r.get("date")),
             "bet_line": r.get("bet_line", ""),
-            "odds": f"{round(odds_val,2)}x",
+            "odds": odds,
             "risk": risk,
             "result": result,
             "profit": profit
@@ -65,23 +59,20 @@ def load_bets():
     return bets
 
 def save_bet(b):
-    odds_val = safe_parse_odds(b["odds"])
-    profit = calc_profit(b["risk"], odds_val, b["result"])
-
     sheet.append_row([
         str(b["date"]), "", "", b["bet_line"],
-        f"{round(odds_val,2)}x",
-        b["risk"], b["result"], profit
+        f"{b['odds']}x", b["risk"], b["result"], b["profit"]
     ])
 
 def update_bet(row, bet):
-    odds_val = safe_parse_odds(bet["odds"])
-    profit = calc_profit(bet["risk"], odds_val, bet["result"])
+    profit = calc_profit(bet["risk"], bet["odds"], bet["result"])
 
     sheet.update(f"A{row}:H{row}", [[
         str(bet["date"]), "", "", bet["bet_line"],
-        f"{round(odds_val,2)}x",
-        bet["risk"], bet["result"], profit
+        f"{bet['odds']}x",
+        bet["risk"],
+        bet["result"],   # 🔥 THIS IS THE FIX
+        profit
     ]])
 
     st.session_state.bets = load_bets()
@@ -157,7 +148,7 @@ with t1:
 
             c1,c2,c3=st.columns([6,1,1])
 
-            c1.write(f"{b['bet_line']} | {b['odds']} | ${round(b['profit'],2)}")
+            c1.write(f"{b['bet_line']} | {b['odds']}x | ${round(b['profit'],2)}")
 
             if c2.button("✏️", key=f"edit{b['row']}"):
                 st.session_state.edit_row=b["row"]
@@ -171,19 +162,14 @@ with t1:
                 with st.form(f"form{b['row']}"):
                     wager=st.text_input("Wager",b["bet_line"])
                     risk=st.number_input("Risk",value=b["risk"])
-                    odds_val=safe_parse_odds(b["odds"])
-                    to_win=st.number_input("To Win",value=risk*(odds_val-1))
-
-                    new_odds=calc_odds(risk,to_win)
-                    st.write(f"Odds: {round(new_odds,2)}x")
-
-                    result=st.selectbox("Result",["pending","win","loss"])
+                    odds=st.number_input("Odds",value=b["odds"])
+                    result=st.selectbox("Result",["pending","win","loss"], index=["pending","win","loss"].index(b["result"]))
 
                     if st.form_submit_button("Save"):
                         update_bet(b["row"],{
                             "date":b["date"],
                             "bet_line":wager,
-                            "odds":f"{round(new_odds,2)}x",
+                            "odds":odds,
                             "risk":risk,
                             "result":result
                         })
@@ -197,20 +183,17 @@ with t2:
         d=st.date_input("Date")
         wager=st.text_input("Wager")
         risk=st.number_input("Risk",value=100.0)
-        to_win=st.number_input("To Win",value=100.0)
-
-        odds=calc_odds(risk,to_win)
-        st.write(f"Odds: {round(odds,2)}x")
-
+        odds=st.number_input("Odds",value=2.0)
         result=st.selectbox("Result",["pending","win","loss"])
 
         if st.form_submit_button("Add"):
             save_bet({
                 "date":d,
                 "bet_line":wager,
-                "odds":f"{round(odds,2)}x",
+                "odds":odds,
                 "risk":risk,
-                "result":result
+                "result":result,
+                "profit":calc_profit(risk,odds,result)
             })
             st.session_state.bets=load_bets()
             st.rerun()
