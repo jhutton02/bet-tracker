@@ -20,10 +20,12 @@ def safe_parse_odds(val):
     try:
         return float(str(val).replace("x",""))
     except:
-        return 0
+        return 1.0   # 🔥 NEVER RETURN 0 AGAIN
 
 def calc_odds(risk, to_win):
-    return (to_win / risk) + 1 if risk != 0 else 0
+    if risk == 0:
+        return 1.0
+    return (to_win / risk) + 1
 
 def calc_profit(risk, odds, result):
     if result == "win":
@@ -45,7 +47,7 @@ def load_bets():
 
     for i, r in enumerate(rows, start=2):
         risk = float(r.get("risk", 0))
-        odds_val = safe_parse_odds(r.get("odds", 0))
+        odds_val = safe_parse_odds(r.get("odds", 1))
         result = str(r.get("result", "pending")).lower()
 
         profit = calc_profit(risk, odds_val, result)
@@ -54,7 +56,7 @@ def load_bets():
             "row": i,
             "date": parse_date(r.get("date")),
             "bet_line": r.get("bet_line", ""),
-            "odds": f"{odds_val}x",
+            "odds": f"{round(odds_val,2)}x",
             "risk": risk,
             "result": result,
             "profit": profit
@@ -68,7 +70,8 @@ def save_bet(b):
 
     sheet.append_row([
         str(b["date"]), "", "", b["bet_line"],
-        b["odds"], b["risk"], b["result"], profit
+        f"{round(odds_val,2)}x",
+        b["risk"], b["result"], profit
     ])
 
 def update_bet(row, bet):
@@ -78,33 +81,13 @@ def update_bet(row, bet):
     sheet.update(f"A{row}:H{row}", [[
         str(bet["date"]), "", "", bet["bet_line"],
         f"{round(odds_val,2)}x",
-        bet["risk"],
-        bet["result"],
-        profit
+        bet["risk"], bet["result"], profit
     ]])
 
     st.session_state.bets = load_bets()
 
 def delete_bet(row):
     sheet.delete_rows(row)
-
-# ================= LIVE =================
-def get_player_points(name):
-    try:
-        url=f"https://www.balldontlie.io/api/v1/players?search={name}"
-        res=requests.get(url).json()
-        if not res["data"]:
-            return 0
-        pid=res["data"][0]["id"]
-
-        stats=requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={pid}&per_page=1").json()
-        if not stats["data"]:
-            return 0
-
-        g=stats["data"][0]
-        return g["pts"]+g["reb"]+g["ast"]
-    except:
-        return 0
 
 # ================= STATE =================
 if "bets" not in st.session_state:
@@ -116,11 +99,8 @@ if "selected_date" not in st.session_state:
 if "edit_row" not in st.session_state:
     st.session_state.edit_row = None
 
-if "live_slips" not in st.session_state:
-    st.session_state.live_slips = []
-
 # ================= TABS =================
-t1, t2, t3, t4 = st.tabs(["📅 Calendar","➕ Add Bet","📋 Tracker","🔥 Live Tracker"])
+t1, t2, t3 = st.tabs(["📅 Calendar","➕ Add Bet","📋 Tracker"])
 
 # ================= CALENDAR =================
 with t1:
@@ -193,8 +173,8 @@ with t1:
                     risk=st.number_input("Risk",value=b["risk"])
                     odds_val=safe_parse_odds(b["odds"])
                     to_win=st.number_input("To Win",value=risk*(odds_val-1))
-                    new_odds=calc_odds(risk,to_win)
 
+                    new_odds=calc_odds(risk,to_win)
                     st.write(f"Odds: {round(new_odds,2)}x")
 
                     result=st.selectbox("Result",["pending","win","loss"])
@@ -208,7 +188,7 @@ with t1:
                             "result":result
                         })
                         st.session_state.edit_row=None
-                        st.session_state.bets = load_bets()
+                        st.session_state.bets=load_bets()
                         st.rerun()
 
 # ================= ADD =================
@@ -256,23 +236,3 @@ with t3:
         ax.plot(dates, running)
         ax.axhline(0, linestyle="--")
         st.pyplot(fig)
-
-# ================= LIVE =================
-with t4:
-    with st.form("live"):
-        player=st.text_input("Player")
-        bet_type=st.selectbox("Type",["Points","Rebounds","Assists","PRA"])
-        line=st.number_input("Line",value=25.0)
-
-        if st.form_submit_button("Add"):
-            st.session_state.live_slips.append({
-                "player":player,
-                "type":bet_type,
-                "line":line
-            })
-
-    for l in st.session_state.live_slips:
-        cur=get_player_points(l["player"])
-        pct=min(cur/l["line"],1) if l["line"] else 0
-
-        st.write(f"{l['player']} ({l['type']}) {cur}/{l['line']} ({int(pct*100)}%)")
