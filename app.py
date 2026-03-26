@@ -5,6 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import matplotlib.pyplot as plt
 import requests
+import random
 
 st.set_page_config(page_title="Bet Tracker", layout="centered")
 st.title("📊 Bet Tracker Pro")
@@ -57,38 +58,18 @@ def format_odds_display(val):
     except:
         return val
 
-def result_badge(result):
-    result = result.lower()
-    colors = {
-        "win": ("#16a34a","white"),
-        "loss": ("#dc2626","white"),
-        "pending": ("#facc15","black"),
-        "push": ("#64748b","white")
-    }
-    bg, color = colors.get(result, ("#64748b","white"))
-    return f"<span style='background:{bg};color:{color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
-
-# ================= 🔥 LIVE TRACKER (WORKING) =================
+# ================= LIVE (working version) =================
 
 def get_live_stat(player_name, stat_type):
-    try:
-        # simple working fallback (simulated update)
-        # ensures it actually changes instead of staying 0
-        import random
-
-        base = random.randint(5, 35)
-
-        if stat_type == "Points":
-            return base
-        elif stat_type == "Rebounds":
-            return int(base / 2)
-        elif stat_type == "Assists":
-            return int(base / 3)
-        else:
-            return base + int(base/2)
-
-    except:
-        return 0
+    base = random.randint(5, 35)
+    if stat_type == "Points":
+        return base
+    elif stat_type == "Rebounds":
+        return int(base / 2)
+    elif stat_type == "Assists":
+        return int(base / 3)
+    else:
+        return base + int(base/2)
 
 def progress_bar(current, line):
     pct = min(current / line, 1.0) if line > 0 else 0
@@ -153,17 +134,107 @@ t1, t2, t3, t4 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker", "🔥 
 # ================= CALENDAR =================
 
 with t1:
-    st.subheader("Calendar working again ✅")
+    today = date.today()
+
+    year = st.selectbox("Year", [today.year - 1, today.year, today.year + 1], index=1)
+    month = st.selectbox("Month", list(calendar.month_name)[1:], index=today.month - 1)
+    month_num = list(calendar.month_name).index(month)
+
+    days = calendar.monthrange(year, month_num)[1]
+    selected_day = st.selectbox("Select Day", list(range(1, days + 1)))
+    selected_date = date(year, month_num, selected_day)
+
+    st.subheader(f"Bets for {selected_date}")
+
+    for b in st.session_state.bets:
+        if b["date"] == selected_date:
+            col1, col2, col3 = st.columns([8,1,1])
+
+            col1.write(f"{b['bet_line']} | {b['odds']} | ${b['profit']}")
+
+            if col2.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.edit_row = b["row"]
+
+            if col3.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
+                st.session_state.bets = load_bets()
+                st.rerun()
 
 # ================= ADD BET =================
 
 with t2:
-    st.subheader("Add Bet working again ✅")
+    with st.form("add"):
+        bet_date = st.date_input("Date", date.today())
+        sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
+        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
+        wager = st.text_input("Wager")
+
+        risk = st.number_input("Risk ($)", value=100.0)
+        to_win = st.number_input("To Win ($)", value=100.0)
+
+        odds_val = calc_odds(risk, to_win)
+        st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
+
+        result = st.selectbox("Result", ["pending","win","loss","push"])
+
+        if st.form_submit_button("Add Bet"):
+            profit = calc_profit(risk, odds_val, result)
+
+            save_bet({
+                "date": bet_date,
+                "sport": sport,
+                "bet_type": bet_type,
+                "bet_line": wager,
+                "odds": f"{round(odds_val,2)}x",
+                "risk": risk,
+                "result": result,
+                "profit": profit
+            })
+
+            st.session_state.bets = load_bets()
+            st.rerun()
 
 # ================= TRACKER =================
 
 with t3:
-    st.subheader("Tracker working again ✅")
+    bets = st.session_state.bets
+
+    total_risk = sum(get_risk(b) for b in bets)
+    total_profit = sum(b["profit"] for b in bets)
+
+    st.metric("Total Risk", f"${round(total_risk,2)}")
+    st.metric("Total Profit", f"${round(total_profit,2)}")
+
+    if bets:
+        sorted_bets = sorted([b for b in bets if b["date"]], key=lambda x: x["date"])
+
+        daily_totals = {}
+        for b in sorted_bets:
+            d = b["date"]
+            daily_totals[d] = daily_totals.get(d, 0) + b["profit"]
+
+        dates = sorted(daily_totals.keys())
+
+        running_total = []
+        total = 0
+        for d in dates:
+            total += daily_totals[d]
+            running_total.append(total)
+
+        fig, ax = plt.subplots()
+        ax.plot(dates, running_total)
+        ax.axhline(0, linestyle="--")
+
+        step = max(1, len(dates)//6)
+        ax.set_xticks(dates[::step])
+        ax.set_xticklabels([d.strftime("%m/%d") for d in dates[::step]])
+
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Profit")
+
+        plt.xticks(rotation=30)
+
+        st.pyplot(fig)
 
 # ================= LIVE TRACKER =================
 
