@@ -41,21 +41,25 @@ def parse_date(val):
 # ================= DATA =================
 def load_bets():
     rows = sheet.get_all_records()
-    bets=[]
-    for i,r in enumerate(rows,start=2):
-        risk=float(r.get("risk",0))
-        odds=safe_parse_odds(r["odds"])
-        result=r["result"]
+    bets = []
+
+    for i, r in enumerate(rows, start=2):
+        risk = float(r.get("risk", 0))
+        odds_val = safe_parse_odds(r.get("odds", 0))
+        result = str(r.get("result", "pending")).lower()
+
+        profit = calc_profit(risk, odds_val, result)
 
         bets.append({
-            "row":i,
-            "date":parse_date(r["date"]),
-            "bet_line":r["bet_line"],
-            "odds":r["odds"],
-            "risk":risk,
-            "result":result,
-            "profit":calc_profit(risk,odds,result)
+            "row": i,
+            "date": parse_date(r.get("date")),
+            "bet_line": r.get("bet_line", ""),
+            "odds": f"{odds_val}x",
+            "risk": risk,
+            "result": result,
+            "profit": profit
         })
+
     return bets
 
 def save_bet(b):
@@ -79,7 +83,6 @@ def update_bet(row, bet):
         profit
     ]])
 
-    # 🔥 FORCE REFRESH
     st.session_state.bets = load_bets()
 
 def delete_bet(row):
@@ -132,15 +135,10 @@ with t1:
     totals={}
     counts={}
 
-    # 🔥 FIXED CALCULATION
     for b in st.session_state.bets:
         if b["date"] and b["date"].year==year and b["date"].month==month:
-
-            odds_val = safe_parse_odds(b["odds"])
-            profit = calc_profit(b["risk"], odds_val, b["result"])
-
             d=b["date"]
-            totals[d]=totals.get(d,0)+profit
+            totals[d]=totals.get(d,0)+b["profit"]
             counts[d]=counts.get(d,0)+1
 
     for week in calendar.monthcalendar(year,month):
@@ -210,6 +208,7 @@ with t1:
                             "result":result
                         })
                         st.session_state.edit_row=None
+                        st.session_state.bets = load_bets()
                         st.rerun()
 
 # ================= ADD =================
