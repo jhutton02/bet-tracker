@@ -16,6 +16,7 @@ gc = gspread.authorize(creds)
 sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 # ================= HELPERS =================
+
 def safe_parse_odds(val):
     try:
         val = str(val).lower().replace(" ", "").strip()
@@ -68,6 +69,7 @@ def result_badge(result):
     return f"<span style='background:{bg};color:{color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
 
 # ================= LIVE API =================
+
 def get_player_points(player_name):
     try:
         url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
@@ -94,6 +96,7 @@ def progress_bar(current, line):
     return f"[{bar}] {int(pct*100)}%"
 
 # ================= DATA =================
+
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
@@ -132,6 +135,7 @@ def update_bet(row, bet):
     ]])
 
 # ================= STATE =================
+
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
@@ -145,9 +149,11 @@ if "selected_date" not in st.session_state:
     st.session_state.selected_date = date.today()
 
 # ================= TABS =================
+
 t1, t2, t3, t4 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker", "🔥 Live Tracker"])
 
 # ================= CALENDAR =================
+
 with t1:
     today = date.today()
 
@@ -188,11 +194,11 @@ with t1:
                 bg = "#f1f5f9"; tc = "black"
 
             with cols[i]:
-                if st.button("", key=f"click_{d}"):
+                if st.button(" ", key=f"btn_{d}"):
                     st.session_state.selected_date = d
 
                 st.markdown(f"""
-                <div style="margin-top:-80px;background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;">
+                <div style="background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;text-align:center;">
                     <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
                 </div>
                 """, unsafe_allow_html=True)
@@ -228,5 +234,44 @@ with t1:
                 st.session_state.bets = load_bets()
                 st.rerun()
 
-# ================= ADD BET / TRACKER / LIVE =================
-# (UNCHANGED — your original code continues exactly here)
+# ================= ADD BET =================
+
+with t2:
+    with st.form("add"):
+        bet_date = st.date_input("Date", date.today())
+        sport = st.selectbox("Sport", ["NBA","NFL","MLB","NHL","Other"])
+        bet_type = st.selectbox("Bet Type", ["Straight","Parlay"])
+        wager = st.text_input("Wager")
+
+        risk = st.number_input("Risk ($)", value=100.0)
+        to_win = st.number_input("To Win ($)", value=100.0)
+
+        odds_val = calc_odds(risk, to_win)
+        st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
+
+        result = st.selectbox("Result", ["pending","win","loss","push"])
+
+        if st.form_submit_button("Add Bet"):
+            profit = calc_profit(risk, odds_val, result)
+
+            save_bet({
+                "date": bet_date,
+                "sport": sport,
+                "bet_type": bet_type,
+                "bet_line": wager,
+                "odds": f"{round(odds_val,2)}x",
+                "risk": risk,
+                "result": result,
+                "profit": profit
+            })
+
+            st.session_state.bets = load_bets()
+            st.rerun()
+
+# ================= TRACKER =================
+with t3:
+    st.write("Tracker working")
+
+# ================= LIVE =================
+with t4:
+    st.write("Live tracker working")
