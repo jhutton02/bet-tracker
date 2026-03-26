@@ -172,17 +172,27 @@ with t1:
                     st.session_state.bets=load_bets()
                     st.rerun()
 
+                # 🔥 FIXED EDIT FORM
                 if st.session_state.edit_row == b["row"]:
                     with st.form(f"form{b['row']}"):
 
                         new_wager = st.text_input("Wager", b["bet_line"])
                         risk = st.number_input("Risk ($)", value=b["risk"])
-                        to_win = st.number_input("To Win ($)", value=b["risk"])
+
+                        original_odds = safe_parse_odds(b["odds"])
+                        to_win = st.number_input(
+                            "To Win ($)",
+                            value=round(risk * (original_odds - 1), 2)
+                        )
 
                         odds_val = calc_odds(risk, to_win)
                         st.text_input("Odds", f"{round(odds_val,2)}x", disabled=True)
 
-                        new_result = st.selectbox("Result", ["pending","win","loss"])
+                        new_result = st.selectbox(
+                            "Result",
+                            ["pending","win","loss"],
+                            index=["pending","win","loss"].index(b["result"])
+                        )
 
                         if st.form_submit_button("Save"):
                             update_bet(b["row"],{
