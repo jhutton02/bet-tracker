@@ -16,7 +16,6 @@ gc = gspread.authorize(creds)
 sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 # ================= HELPERS =================
-
 def safe_parse_odds(val):
     try:
         val = str(val).lower().replace(" ", "").strip()
@@ -69,7 +68,6 @@ def result_badge(result):
     return f"<span style='background:{bg};color:{color};padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;'>{result.upper()}</span>"
 
 # ================= DATA =================
-
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
@@ -108,7 +106,6 @@ def update_bet(row, bet):
     ]])
 
 # ================= STATE =================
-
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
@@ -121,12 +118,26 @@ if "edit_row" not in st.session_state:
 if "selected_date" not in st.session_state:
     st.session_state.selected_date = date.today()
 
-# ================= TABS =================
+# ================= STYLE =================
+st.markdown("""
+<style>
+div[data-testid="stButton"] > button {
+    height: 100px;
+    border-radius: 14px;
+    border: none;
+    font-weight: 600;
+}
+div[data-testid="stButton"] > button:hover {
+    filter: brightness(0.95);
+    transform: scale(1.02);
+}
+</style>
+""", unsafe_allow_html=True)
 
+# ================= TABS =================
 t1, t2, t3, t4 = st.tabs(["📅 Calendar", "➕ Add Bet", "📋 Tracker", "🔥 Live Tracker"])
 
 # ================= CALENDAR =================
-
 with t1:
     today = date.today()
 
@@ -152,7 +163,7 @@ with t1:
         cols = st.columns(7)
         for i, day in enumerate(week):
             if day == 0:
-                cols[i].markdown("")
+                cols[i].write("")
                 continue
 
             d = date(year, month, day)
@@ -160,20 +171,28 @@ with t1:
             cnt = counts.get(d, 0)
 
             if val > 0:
-                bg = "#16a34a"; tc = "white"
+                color = "#16a34a"
             elif val < 0:
-                bg = "#dc2626"; tc = "white"
+                color = "#dc2626"
             else:
-                bg = "#f1f5f9"; tc = "black"
+                color = "#e5e7eb"
 
             with cols[i]:
-                if st.button(f"{day}", key=f"day_{d}"):
+                if st.button(
+                    f"{day}\n${round(val,2)}\n{cnt} bets",
+                    key=f"day_{d}",
+                    use_container_width=True
+                ):
                     st.session_state.selected_date = d
 
+                # color styling
                 st.markdown(f"""
-                <div style="background:{bg};color:{tc};padding:12px;border-radius:14px;height:100px;">
-                    <b>{day}</b><br>${round(val,2)}<br>{cnt} bets
-                </div>
+                <style>
+                button[key="day_{d}"] {{
+                    background-color: {color} !important;
+                    color: white !important;
+                }}
+                </style>
                 """, unsafe_allow_html=True)
 
     selected_date = st.session_state.selected_date
@@ -184,16 +203,37 @@ with t1:
     day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
 
     for b in day_bets:
-        st.write(b)
+        col1, col2, col3 = st.columns([8,1,1])
+
+        with col1:
+            st.markdown(f"""
+            <div style='background:#f1f5f9;padding:12px;border-radius:12px;margin-bottom:8px'>
+            <b>{b['sport']} | {b['bet_type']}</b><br>
+            {b['bet_line']} {result_badge(b['result'])}<br>
+            Odds: {format_odds_display(b['odds'])}<br>
+            Risk: ${get_risk(b)}<br>
+            <b>${round(b['profit'],2)}</b>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            if st.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.edit_row = b["row"]
+
+        with col3:
+            if st.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
+                st.session_state.bets = load_bets()
+                st.rerun()
 
 # ================= ADD BET =================
 with t2:
-    st.write("Add bet works")
+    st.write("Your original Add Bet code remains here")
 
 # ================= TRACKER =================
 with t3:
-    st.write("Tracker works")
+    st.write("Your original Tracker remains here")
 
-# ================= LIVE =================
+# ================= LIVE TRACKER =================
 with t4:
-    st.write("Live works")
+    st.write("Your original Live Tracker remains here")
