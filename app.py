@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date, timedelta, datetime
+from datetime import date, datetime
 import calendar
 import gspread
 from google.oauth2.service_account import Credentials
@@ -73,9 +73,13 @@ def update_bet(row, bet):
 
     sheet.update(f"A{row}:H{row}", [[
         str(bet["date"]), "", "", bet["bet_line"],
-        bet["odds"], bet["risk"], bet["result"], profit
+        f"{round(odds_val,2)}x",
+        bet["risk"],
+        bet["result"],
+        profit
     ]])
 
+    # 🔥 FORCE REFRESH
     st.session_state.bets = load_bets()
 
 def delete_bet(row):
@@ -128,10 +132,15 @@ with t1:
     totals={}
     counts={}
 
+    # 🔥 FIXED CALCULATION
     for b in st.session_state.bets:
         if b["date"] and b["date"].year==year and b["date"].month==month:
+
+            odds_val = safe_parse_odds(b["odds"])
+            profit = calc_profit(b["risk"], odds_val, b["result"])
+
             d=b["date"]
-            totals[d]=totals.get(d,0)+b["profit"]
+            totals[d]=totals.get(d,0)+profit
             counts[d]=counts.get(d,0)+1
 
     for week in calendar.monthcalendar(year,month):
@@ -170,7 +179,7 @@ with t1:
 
             c1,c2,c3=st.columns([6,1,1])
 
-            c1.write(f"{b['bet_line']} | {b['odds']} | ${b['profit']}")
+            c1.write(f"{b['bet_line']} | {b['odds']} | ${round(b['profit'],2)}")
 
             if c2.button("✏️", key=f"edit{b['row']}"):
                 st.session_state.edit_row=b["row"]
@@ -187,7 +196,9 @@ with t1:
                     odds_val=safe_parse_odds(b["odds"])
                     to_win=st.number_input("To Win",value=risk*(odds_val-1))
                     new_odds=calc_odds(risk,to_win)
+
                     st.write(f"Odds: {round(new_odds,2)}x")
+
                     result=st.selectbox("Result",["pending","win","loss"])
 
                     if st.form_submit_button("Save"):
@@ -228,7 +239,6 @@ with t2:
 # ================= TRACKER =================
 with t3:
     bets=st.session_state.bets
-    today=date.today()
 
     total_profit=sum(b["profit"] for b in bets)
     st.metric("Total Profit",f"${round(total_profit,2)}")
@@ -264,6 +274,6 @@ with t4:
 
     for l in st.session_state.live_slips:
         cur=get_player_points(l["player"])
-        pct=min(cur/l["line"],1)
+        pct=min(cur/l["line"],1) if l["line"] else 0
 
         st.write(f"{l['player']} ({l['type']}) {cur}/{l['line']} ({int(pct*100)}%)")
