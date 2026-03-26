@@ -112,6 +112,9 @@ def update_bet(row, bet):
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
+if "live_slips" not in st.session_state:
+    st.session_state.live_slips = []
+
 if "edit_row" not in st.session_state:
     st.session_state.edit_row = None
 
@@ -177,3 +180,20 @@ with t1:
 
     st.divider()
     st.subheader(f"Bets for {selected_date}")
+
+    day_bets = [b for b in st.session_state.bets if b["date"] == selected_date]
+
+    for b in day_bets:
+        st.write(b)
+
+# ================= ADD BET =================
+with t2:
+    st.write("Add bet works")
+
+# ================= TRACKER =================
+with t3:
+    st.write("Tracker works")
+
+# ================= LIVE =================
+with t4:
+    st.write("Live works")
