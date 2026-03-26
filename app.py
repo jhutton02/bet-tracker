@@ -53,8 +53,9 @@ def get_risk(b):
 def load_bets():
     rows = sheet.get_all_records()
     bets = []
-    for r in rows:
+    for i, r in enumerate(rows, start=2):
         bets.append({
+            "row": i,
             "date": parse_date_safe(r["date"]),
             "sport": r["sport"],
             "bet_type": r["bet_type"],
@@ -72,6 +73,15 @@ def save_bet(bet):
         bet["odds"], bet["risk"], bet["result"], bet["profit"]
     ])
 
+def delete_bet(row):
+    sheet.delete_rows(row)
+
+def update_bet(row, bet):
+    sheet.update(f"A{row}:H{row}", [[
+        str(bet["date"]), bet["sport"], bet["bet_type"], bet["bet_line"],
+        bet["odds"], bet["risk"], bet["result"], bet["profit"]
+    ]])
+
 # ================= STATE =================
 
 if "bets" not in st.session_state:
@@ -79,6 +89,9 @@ if "bets" not in st.session_state:
 
 if "selected_date" not in st.session_state:
     st.session_state.selected_date = date.today()
+
+if "edit_row" not in st.session_state:
+    st.session_state.edit_row = None
 
 # ================= TABS =================
 
@@ -102,13 +115,11 @@ with t1:
 
     st.markdown("<div style='background:#f8fafc;padding:20px;border-radius:12px;'>", unsafe_allow_html=True)
 
-    # Header
     days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     cols = st.columns(7)
     for i, d in enumerate(days):
         cols[i].markdown(f"<div style='text-align:center;font-weight:600'>{d}</div>", unsafe_allow_html=True)
 
-    # Grid
     for week in calendar.monthcalendar(year, month):
         cols = st.columns(7)
         for i, day in enumerate(week):
@@ -136,7 +147,7 @@ with t1:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ================= SELECTED DAY RESULTS =================
+    # ================= DAY DETAILS =================
 
     st.divider()
     selected = st.session_state.selected_date
@@ -148,15 +159,57 @@ with t1:
         st.info("No bets for this day")
 
     for b in day_bets:
-        st.markdown(f"""
-        <div style='background:#f1f5f9;padding:12px;border-radius:10px;margin-bottom:8px'>
-        <b>{b['sport']} | {b['bet_type']}</b><br>
-        {b['bet_line']}<br>
-        Odds: {b['odds']}<br>
-        Risk: ${b['risk']}<br>
-        <b>${round(b['profit'],2)}</b>
-        </div>
-        """, unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([8,1,1])
+
+        with col1:
+            st.markdown(f"""
+            <div style='background:#f1f5f9;padding:12px;border-radius:10px;margin-bottom:8px'>
+            <b>{b['sport']} | {b['bet_type']}</b><br>
+            {b['bet_line']}<br>
+            Odds: {b['odds']}<br>
+            Risk: ${b['risk']}<br>
+            <b>${round(b['profit'],2)}</b>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            if st.button("✏️", key=f"edit_{b['row']}"):
+                st.session_state.edit_row = b["row"]
+
+        with col3:
+            if st.button("❌", key=f"del_{b['row']}"):
+                delete_bet(b["row"])
+                st.session_state.bets = load_bets()
+                st.rerun()
+
+        if st.session_state.edit_row == b["row"]:
+            with st.form(f"edit_form_{b['row']}"):
+
+                new_wager = st.text_input("Wager", b["bet_line"])
+                risk = st.number_input("Risk ($)", value=b["risk"])
+                to_win = st.number_input("To Win ($)", value=100.0)
+
+                odds_val = calc_odds(risk, to_win)
+
+                new_result = st.selectbox("Result", ["pending","win","loss","push"])
+
+                if st.form_submit_button("Save"):
+                    profit = calc_profit(risk, odds_val, new_result)
+
+                    update_bet(b["row"], {
+                        "date": b["date"],
+                        "sport": b["sport"],
+                        "bet_type": b["bet_type"],
+                        "bet_line": new_wager,
+                        "odds": f"{round(odds_val,2)}x",
+                        "risk": risk,
+                        "result": new_result,
+                        "profit": profit
+                    })
+
+                    st.session_state.bets = load_bets()
+                    st.session_state.edit_row = None
+                    st.rerun()
 
 # ================= ADD BET =================
 
@@ -170,7 +223,7 @@ with t2:
         risk = st.number_input("Risk ($)", value=100.0)
         to_win = st.number_input("To Win ($)", value=100.0)
 
-        odds_val = (to_win / risk) + 1
+        odds_val = calc_odds(risk, to_win)
         result = st.selectbox("Result", ["pending","win","loss","push"])
 
         if st.form_submit_button("Add Bet"):
@@ -195,17 +248,25 @@ with t2:
 with t3:
     bets = st.session_state.bets
 
-    total_profit = sum(b["profit"] for b in bets)
-    st.metric("Total Profit", f"${round(total_profit,2)}")
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+
+    daily = sum(b["profit"] for b in bets if b["date"] == today)
+    weekly = sum(b["profit"] for b in bets if b["date"] and b["date"] >= week_start)
+    monthly = sum(b["profit"] for b in bets if b["date"] and b["date"] >= month_start)
+
+    st.metric("Day", daily)
+    st.metric("Week", weekly)
+    st.metric("Month", monthly)
 
     sorted_bets = sorted([b for b in bets if b["date"]], key=lambda x: x["date"])
     dates = [b["date"] for b in sorted_bets]
-    profits = [b["profit"] for b in sorted_bets]
 
     running = []
     total = 0
-    for p in profits:
-        total += p
+    for b in sorted_bets:
+        total += b["profit"]
         running.append(total)
 
     fig, ax = plt.subplots()
