@@ -3,7 +3,6 @@ from datetime import date, timedelta, datetime
 import calendar
 import gspread
 from google.oauth2.service_account import Credentials
-import matplotlib.pyplot as plt
 import requests
 
 st.set_page_config(page_title="Bet Tracker", layout="centered")
@@ -16,7 +15,6 @@ gc = gspread.authorize(creds)
 sheet = gc.open_by_key("1ckrXeP6LZpLSVdbRV1-02kj0WuKj603Q8_kDoqCVh9Q").sheet1
 
 # ================= HELPERS =================
-
 def safe_parse_odds(val):
     try:
         return float(str(val).replace("x",""))
@@ -24,10 +22,7 @@ def safe_parse_odds(val):
         return 0
 
 def calc_odds(risk, to_win):
-    return (to_win / risk) + 1 if risk != 0 else 0
-
-def calc_to_win(risk, odds):
-    return risk * (odds - 1)
+    return (to_win / risk) + 1 if risk else 0
 
 def calc_profit(risk, odds, result):
     if result == "win":
@@ -43,7 +38,6 @@ def parse_date(val):
         return None
 
 # ================= DATA =================
-
 def load_bets():
     rows = sheet.get_all_records()
     bets=[]
@@ -85,7 +79,6 @@ def delete_bet(r):
     sheet.delete_rows(r)
 
 # ================= LIVE =================
-
 def get_player_points(name):
     try:
         url=f"https://www.balldontlie.io/api/v1/players?search={name}"
@@ -104,7 +97,6 @@ def get_player_points(name):
         return 0
 
 # ================= STATE =================
-
 if "bets" not in st.session_state:
     st.session_state.bets = load_bets()
 
@@ -118,11 +110,9 @@ if "live" not in st.session_state:
     st.session_state.live = []
 
 # ================= TABS =================
-
 t1, t2, t3, t4 = st.tabs(["📅 Calendar","➕ Add Bet","📋 Tracker","🔥 Live Tracker"])
 
 # ================= CALENDAR =================
-
 with t1:
     today=date.today()
 
@@ -149,9 +139,10 @@ with t1:
             val=totals.get(d,0)
             cnt=counts.get(d,0)
 
-            color="green" if val>0 else "red" if val<0 else "gray"
+            # ✅ COLOR FIX
+            color="🟢" if val>0 else "🔴" if val<0 else "⚪"
 
-            if cols[i].button(f"{day}\n${round(val,2)}\n{cnt} bets", key=f"day{day}"):
+            if cols[i].button(f"{day}\n{color} ${round(val,2)}\n{cnt} bets", key=f"day{year}{m}{day}"):
                 st.session_state.selected_day=d
 
     st.subheader(f"Bets for {st.session_state.selected_day}")
@@ -172,18 +163,18 @@ with t1:
                 st.rerun()
 
             if st.session_state.edit_row==b["row"]:
-                with st.form(f"edit{b['row']}"):
+                with st.form(f"edit_form_{b['row']}"):
 
                     wager=st.text_input("Wager",b["bet_line"])
                     risk=st.number_input("Risk",value=b["risk"])
 
-                    odds=safe_parse_odds(b["odds"])
-                    to_win=st.number_input("To Win",value=calc_to_win(risk,odds))
+                    odds_val=safe_parse_odds(b["odds"])
+                    to_win=st.number_input("To Win",value=risk*(odds_val-1))
 
                     new_odds=calc_odds(risk,to_win)
                     st.write(f"Odds: {round(new_odds,2)}x")
 
-                    result=st.selectbox("Result",["pending","win","loss"])
+                    result=st.selectbox("Result",["pending","win","loss"], index=["pending","win","loss"].index(b["result"]))
 
                     if st.form_submit_button("Save"):
                         update_bet(b["row"],{
@@ -198,9 +189,8 @@ with t1:
                         st.rerun()
 
 # ================= ADD =================
-
 with t2:
-    with st.form("add"):
+    with st.form("add_form"):
         d=st.date_input("Date")
         wager=st.text_input("Wager")
         risk=st.number_input("Risk",value=100.0)
@@ -223,7 +213,6 @@ with t2:
             st.rerun()
 
 # ================= TRACKER =================
-
 with t3:
     bets=st.session_state.bets
     today=date.today()
@@ -239,17 +228,15 @@ with t3:
     st.write("Yearly:",y)
 
 # ================= LIVE =================
-
 with t4:
-    with st.form("live"):
-        name=st.text_input("Player")
-        line=st.number_input("Line",value=25.0)
+    player=st.text_input("Player Name")
+    line=st.number_input("Line",value=25.0)
 
-        if st.form_submit_button("Add"):
-            st.session_state.live.append({"name":name,"line":line})
+    if st.button("Add Player"):
+        st.session_state.live.append({"name":player,"line":line})
 
-    for l in st.session_state.live:
+    for i,l in enumerate(st.session_state.live):
         cur=get_player_points(l["name"])
-        pct=min(cur/l["line"],1)
+        pct=min(cur/l["line"],1) if l["line"] else 0
 
-        st.write(f"{l['name']} {cur}/{l['line']} ({int(pct*100)}%)")
+        st.write(f"{l['name']} → {cur}/{l['line']} ({int(pct*100)}%)")
